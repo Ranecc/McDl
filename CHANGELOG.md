@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-21
+
+### 变更
+
+- 变更：依赖升级——Newtonsoft.Json 13.0.4、Costura.Fody 6.2.0、Microsoft.NET.Test.Sdk 18.11.0、xunit.runner.visualstudio 4.0.1、Microsoft.Bcl.AsyncInterfaces 10.0.13（单文件打包行为与体积已回归验证）
+- 变更：CI 的 job 名改为 `build`，便于在分支保护里勾选「必需状态检查」
+
 ## [0.2.0] - 2026-10-21
 
 ### 添加

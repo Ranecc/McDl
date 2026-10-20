@@ -10,8 +10,8 @@
     <AssemblyTitle>McDl Minecraft 下载器</AssemblyTitle>
     <Product>McDl</Product>
     <Description>Standalone Minecraft file downloader</Description>
-    <Version>0.2.0</Version>
-    <FileVersion>0.2.0.0</FileVersion>
+    <Version>0.2.1</Version>
+    <FileVersion>0.2.1.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Costura.Fody" Version="5.7.0" PrivateAssets="all" />
+    <PackageReference Include="Costura.Fody" Version="6.2.0" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

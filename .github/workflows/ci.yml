@@ -14,7 +14,9 @@ concurrency:
 
 jobs:
   build:
-    name: 构建 (net48)
+    # Job 名保持 ASCII：GitHub 的分支保护「必需状态检查」里按这个名字选，
+    # 中文名在搜索框里不好找。
+    name: build
     runs-on: windows-latest
 
     steps:
