@@ -4,14 +4,21 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-21
+
 ### 添加
 
-- 添加：整合包游戏本体下载
-- 添加：下载引擎 / 图形界面 / 命令行的分层重构，`McDl.Core` 不再依赖界面层
+- 添加：整合包游戏本体下载——读取 Modrinth `.mrpack` 索引，安装其声明的 Minecraft 版本与 Fabric 加载器，并生成 `inheritsFrom` 版本 profile
+- 添加：`.mrpack` 可直接拖入窗口，或作为命令行参数启动 `McDl.exe`
+- 添加：下载引擎 / 图形界面 / 命令行的分层重构，`McDl.Core` 不再依赖界面层（`Api / Sources / Engine / Minecraft / Support`）
+- 添加：`mcdl.sln`、xUnit 测试项目（52 个用例）与 `ARCHITECTURE.md`
+- 添加：GitHub Actions（CI 构建 + 打 tag 自动发布）、Issue/PR 模板、Dependabot 配置
 
 ### 变更
 
 - 变更：命令行与图形界面共用同一套下载与解析逻辑
+- 变更：首次运行默认安装目录改为 `%APPDATA%\.minecraft`
+- 变更：整合包安装完成后页脚显示整合包名而非原版版本号
 
 ## [0.1.0] - 2026-10-20
 

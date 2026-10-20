@@ -9,6 +9,7 @@
 ## 特性
 
 - **版本列表**：打开即拉取全量版本（约 920 个），支持 `全部 / 正式版 / 快照` 过滤与搜索
+- **整合包本体**：读取 Modrinth `.mrpack` 索引，自动安装它声明的 Minecraft 版本与 Fabric 加载器（不含模组文件）；也可以把 `.mrpack` 直接拖进窗口或作为命令行参数传给 `McDl.exe`
 - **并行下载**：默认 8 线程可调，`HttpClient` + 连接复用
 - **完整性校验**：每个文件下载后校验 SHA1，已存在且校验通过的文件直接跳过
 - **断点续传**：下载落盘到 `.part` 临时文件，中断/取消后从已下载字节继续
@@ -28,20 +29,31 @@
 
 `.NET Framework 4.8` 为 Windows 10/11 内置运行时，无需额外安装。
 
+### 从整合包安装
+
+点右上角 **整合包…** 选一个 `.mrpack`（或把文件拖进窗口、`McDl.exe 某整合包.mrpack` 直接打开），界面会显示整合包名与它声明的 Minecraft / Fabric 版本，再点 **开始安装**：先装原版本体，再补上 Fabric 加载器与该整合包对应的版本 profile，得到一个可以直接启动的版本目录。
+
+- 只处理**游戏本体 + 加载器**，模组、资源包、光影等文件由启动器负责安装
+- 目前支持 Modrinth 格式（`.mrpack`）；遇到 Forge / NeoForge / Quilt 整合包会明确提示暂不支持
+- 输出目录里会有两个版本：`versions/<原版版本号>`（本体）与 `versions/<整合包名>`（`inheritsFrom` 本体，含 Fabric 库）
+
 ## 命令行
 
 ```powershell
 # 列出最新版本
-McDl.Cli.exe list --limit 20
+mcdl.exe list --limit 20
 
 # 预览某版本需要下载什么（不写入磁盘）
-McDl.Cli.exe plan 26.3
+mcdl.exe plan 26.3
 
 # 安装到指定目录
-McDl.Cli.exe install 26.3 --root "D:\Games\mc-26.3" --threads 16
+mcdl.exe install 26.3 --root "D:\Games\mc-26.3" --threads 16
 
 # 只要客户端本体，不要资源文件
-McDl.Cli.exe install 1.6.4 --root "D:\Games\mc-1.6.4" --no-assets
+mcdl.exe install 1.6.4 --root "D:\Games\mc-1.6.4" --no-assets
+
+# 按整合包安装游戏本体 + Fabric 加载器
+mcdl.exe modpack "D:\packs\某整合包.mrpack" --root "D:\Games\mc-pack"
 ```
 
 ## 构建

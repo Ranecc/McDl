@@ -8,7 +8,7 @@ namespace McDl.App
     internal static class Program
     {
         [STAThread]
-        private static void Main()
+        private static void Main(string[] args)
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
@@ -19,7 +19,7 @@ namespace McDl.App
             AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
                 ShowFatal(e.ExceptionObject as Exception);
 
-            Application.Run(new MainForm());
+            Application.Run(new MainForm(args));
         }
 
         private static void ShowFatal(Exception ex)
@@ -88,6 +88,16 @@ namespace McDl.App
                 case "bmclapi": return "BMCLAPI";
                 default: return name ?? string.Empty;
             }
+        }
+
+        /// <summary>Assembly version trimmed to major.minor.patch, for the footer label.</summary>
+        public static string ShortVersion()
+        {
+            var version = typeof(Theme).Assembly.GetName().Version;
+            if (version == null) return "0.0";
+            return version.Revision > 0
+                ? version.ToString()
+                : version.Major + "." + version.Minor + "." + System.Math.Max(0, version.Build);
         }
     }
 }

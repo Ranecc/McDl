@@ -10,8 +10,8 @@
     <AssemblyTitle>McDl Minecraft 下载器</AssemblyTitle>
     <Product>McDl</Product>
     <Description>Standalone Minecraft file downloader</Description>
-    <Version>0.1.0</Version>
-    <FileVersion>0.1.0.0</FileVersion>
+    <Version>0.2.0</Version>
+    <FileVersion>0.2.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

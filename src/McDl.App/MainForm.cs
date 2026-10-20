@@ -22,6 +22,9 @@ namespace McDl.App
         private bool _busy;
         private bool _filling;
 
+        // Non-null while the user picked a .mrpack: install then runs as InstallKind.Modpack.
+        private string _modpackPath;
+
         private Panel _header;
         private Panel _footer;
         private Panel _content;
@@ -48,6 +51,7 @@ namespace McDl.App
         private Button _browse;
         private NumericUpDown _threads;
         private CheckBox _withAssets;
+        private Button _openPack;
         private Label _mirror;
         private ProgressBar _bar;
         private Label _pct;
@@ -59,6 +63,11 @@ namespace McDl.App
         private TextBox _log;
 
         public MainForm()
+            : this(null)
+        {
+        }
+
+        public MainForm(string[] args)
         {
             Text = "McDl · Minecraft 原版下载器";
             StartPosition = FormStartPosition.CenterScreen;
@@ -78,6 +87,42 @@ namespace McDl.App
 
             Shown += async (sender, e) => await LoadVersionsAsync();
             FormClosing += OnFormClosing;
+
+            AllowDrop = true;
+            DragEnter += OnDragEnter;
+            DragDrop += OnDragDrop;
+
+            var initial = FirstModpackArgument(args);
+            if (initial != null) LoadModpack(initial);
+        }
+
+        private static string FirstModpackArgument(string[] args)
+        {
+            if (args == null) return null;
+            foreach (var arg in args)
+            {
+                if (string.IsNullOrEmpty(arg)) continue;
+                if (arg.EndsWith(".mrpack", StringComparison.OrdinalIgnoreCase) && File.Exists(arg)) return arg;
+            }
+            return null;
+        }
+
+        private void OnDragEnter(object sender, DragEventArgs e)
+        {
+            e.Effect = DragDropPaths(e).Length > 0 ? DragDropEffects.Copy : DragDropEffects.None;
+        }
+
+        private void OnDragDrop(object sender, DragEventArgs e)
+        {
+            var paths = DragDropPaths(e);
+            if (paths.Length > 0) LoadModpack(paths[0]);
+        }
+
+        private static string[] DragDropPaths(DragEventArgs e)
+        {
+            var files = e.Data == null ? null : e.Data.GetData(DataFormats.FileDrop) as string[];
+            if (files == null) return new string[0];
+            return files.Where(f => f.EndsWith(".mrpack", StringComparison.OrdinalIgnoreCase)).ToArray();
         }
 
         private void BuildHeader()
@@ -151,7 +196,7 @@ namespace McDl.App
 
             _footerVersion = new Label
             {
-                Text = "v0.1 · net48 · McDl 引擎",
+                Text = "v" + Theme.ShortVersion() + " · net48 · McDl 引擎",
                 AutoSize = true,
                 TextAlign = ContentAlignment.MiddleRight,
                 Font = Theme.Ui(8.25f),
@@ -256,6 +301,11 @@ namespace McDl.App
 
             _separator = new Panel { BackColor = Theme.Border, Height = 1 };
 
+            _openPack = Buttons.Secondary("整合包…");
+            _openPack.Size = new Size(92, 30);
+            _openPack.Font = Theme.Ui(8.75f);
+            _openPack.Click += OnOpenModpack;
+
             var rootCaption = new Label
             {
                 Text = "安装目录",
@@ -321,6 +371,7 @@ namespace McDl.App
             _rightCard.Controls.Add(_vMeta);
             _rightCard.Controls.Add(_vStats);
             _rightCard.Controls.Add(_separator);
+            _rightCard.Controls.Add(_openPack);
             _rightCard.Controls.Add(rootCaption);
             _rightCard.Controls.Add(_root);
             _rightCard.Controls.Add(_browse);
@@ -345,7 +396,8 @@ namespace McDl.App
             var width = _rightCard.ClientSize.Width;
             var inner = Math.Max(120, width - 36);
 
-            _vTitle.Bounds = new Rectangle(18, 14, inner, 34);
+            _vTitle.Bounds = new Rectangle(18, 14, Math.Max(80, inner - 100), 34);
+            _openPack.Location = new Point(18 + inner - 92, 16);
             _vMeta.Bounds = new Rectangle(18, 50, inner, 20);
             _vStats.Bounds = new Rectangle(18, 72, inner, 20);
             _separator.Bounds = new Rectangle(18, 98, inner, 1);
@@ -444,7 +496,9 @@ namespace McDl.App
 
                 _versions = manifest.Versions;
                 ApplyFilter();
-                SelectDefault(manifest.Latest?.Release);
+
+                // A .mrpack chosen before the list arrived (drag-drop or command line) owns the panel.
+                if (_modpackPath == null) SelectDefault(manifest.Latest?.Release);
 
                 AppendLog(string.Format("已加载 {0} 个版本（最新正式版 {1}，最新快照 {2}）。",
                     _versions.Count, manifest.Latest?.Release ?? "?", manifest.Latest?.Snapshot ?? "?"));
@@ -524,7 +578,9 @@ namespace McDl.App
                 _filling = false;
             }
 
-            if (_list.Items.Count > 0 && _list.SelectedIndex < 0) _list.SelectedIndex = 0;
+            // While a .mrpack is pending the list stays unselected: picking a row means "install that
+            // version instead", so the automatic first-row selection must not clear the pack.
+            if (_modpackPath == null && _list.Items.Count > 0 && _list.SelectedIndex < 0) _list.SelectedIndex = 0;
             if (_list.Items.Count == 0)
             {
                 _vTitle.Text = "没有匹配的版本";
@@ -539,6 +595,12 @@ namespace McDl.App
 
             var entry = _list.SelectedItem as VersionEntry;
             if (entry == null) return;
+
+            if (_modpackPath != null)
+            {
+                _modpackPath = null;
+                AppendLog("已切回按版本安装。");
+            }
 
             _vTitle.Text = entry.Id;
             _vMeta.Text = Theme.VersionType(entry.Type) + "   ·   发布于 " + Theme.Date(entry.ReleaseTime);
@@ -578,6 +640,65 @@ namespace McDl.App
             }
         }
 
+        private void OnOpenModpack(object sender, EventArgs e)
+        {
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Title = "选择 Modrinth 整合包";
+                dialog.Filter = "Modrinth 整合包 (*.mrpack)|*.mrpack|所有文件 (*.*)|*.*";
+                dialog.CheckFileExists = true;
+
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                LoadModpack(dialog.FileName);
+            }
+        }
+
+        /// <summary>Adopts a .mrpack as the pending install: version body first, loader second.</summary>
+        private void LoadModpack(string fileName)
+        {
+            ModpackManifest pack;
+            try
+            {
+                pack = ModpackArchive.ReadIndex(fileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "无法读取整合包：" + ex.Message, "McDl",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(pack.MinecraftVersion))
+            {
+                MessageBox.Show(this, "整合包没有声明 Minecraft 版本，无法安装。", "McDl",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (pack.UnsupportedLoader != null)
+            {
+                MessageBox.Show(this,
+                    "这个整合包需要 " + pack.UnsupportedLoader + "，目前只支持原版与 Fabric。",
+                    "暂不支持", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            _modpackPath = fileName;
+            _plan = null;
+
+            _vTitle.Text = pack.DisplayName;
+            _vMeta.Text = "整合包   ·   Minecraft " + pack.MinecraftVersion +
+                          (pack.FabricLoaderVersion != null ? " + Fabric " + pack.FabricLoaderVersion : string.Empty);
+            _vStats.Text = "将先安装原版游戏本体，再安装对应的加载器（不含模组文件）。";
+            _bar.Value = 0;
+            _pct.Text = "0%";
+            _speed.Text = string.Empty;
+            _file.Text = string.Empty;
+            _list.ClearSelected();
+
+            AppendLog("已选择整合包：" + Path.GetFileName(fileName) + "（MC " + pack.MinecraftVersion + "）");
+        }
+
         private void OnOpenFolder(object sender, EventArgs e)
         {
             var path = (_root.Text ?? string.Empty).Trim();
@@ -597,9 +718,12 @@ namespace McDl.App
             if (_busy) return;
 
             var entry = _list.SelectedItem as VersionEntry;
-            if (entry == null)
+            var modpackPath = _modpackPath;
+
+            if (modpackPath == null && entry == null)
             {
-                MessageBox.Show(this, "请先在左侧选择一个版本。", "McDl", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "请先在左侧选择一个版本，或点击「整合包…」选择 .mrpack 文件。",
+                    "McDl", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -626,7 +750,7 @@ namespace McDl.App
             _settings.WithAssets = _withAssets.Checked;
             _settings.Save();
 
-            var versionId = entry.Id;
+            var versionId = modpackPath != null ? Path.GetFileNameWithoutExtension(modpackPath) : entry.Id;
             var threads = (int)_threads.Value;
             var includeAssets = _withAssets.Checked;
             var progressSink = new Progress<TransferStats>(OnStats);
@@ -640,18 +764,28 @@ namespace McDl.App
 
             _cts = new CancellationTokenSource();
             var ct = _cts.Token;
-            SetBusyUi(true, "正在安装 " + versionId);
-            AppendLog(string.Format("开始安装 {0} → {1}（{2} 线程）", versionId, root, threads));
+            SetBusyUi(true, modpackPath != null ? "正在安装整合包" : "正在安装 " + versionId);
+            AppendLog(modpackPath != null
+                ? string.Format("开始安装整合包 {0} → {1}（{2} 线程）", Path.GetFileName(modpackPath), root, threads)
+                : string.Format("开始安装 {0} → {1}（{2} 线程）", versionId, root, threads));
 
             try
             {
-                var request = new InstallRequest
-                {
-                    Kind = InstallKind.Vanilla,
-                    Root = root,
-                    Version = versionId,
-                    IncludeAssets = includeAssets
-                };
+                var request = modpackPath != null
+                    ? new InstallRequest
+                    {
+                        Kind = InstallKind.Modpack,
+                        Root = root,
+                        ModpackPath = modpackPath,
+                        IncludeAssets = includeAssets
+                    }
+                    : new InstallRequest
+                    {
+                        Kind = InstallKind.Vanilla,
+                        Root = root,
+                        Version = versionId,
+                        IncludeAssets = includeAssets
+                    };
 
                 InstallSummary summary = null;
 
@@ -682,7 +816,9 @@ namespace McDl.App
 
                 var stats = summary.Stats;
                 var firstFailure = summary.Failures.Count > 0 ? summary.Failures[0] : null;
-                var versionLabel = summary.Plan != null ? summary.Plan.VersionId : versionId;
+                var versionLabel = summary.Plan != null && !string.IsNullOrEmpty(summary.Plan.Label)
+                    ? summary.Plan.Label
+                    : (summary.Plan != null ? summary.Plan.VersionId : versionId);
 
                 AppendLog(string.Format("安装结束：下载 {0}，已存在 {1}，失败 {2}。",
                     stats.DoneFiles, stats.SkippedFiles, stats.FailedFiles));
@@ -707,6 +843,8 @@ namespace McDl.App
             catch (Exception ex)
             {
                 AppendLog("安装失败：" + ex.Message);
+                if (ex is UnauthorizedAccessException)
+                    AppendLog("提示：当前账号无法写入该安装目录，请换一个目录（例如 `D:\\Games\\.minecraft`）或检查目录权限。");
                 SetFooter("安装失败");
                 _pct.Text = "失败";
                 MessageBox.Show(this, ex.Message, "安装失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -754,6 +892,7 @@ namespace McDl.App
             _threads.Enabled = !busy;
             _withAssets.Enabled = !busy;
             _browse.Enabled = !busy;
+            _openPack.Enabled = !busy;
             _root.Enabled = !busy;
             _cancel.Enabled = busy;
             _start.Text = busy ? "安装中…" : "开始安装";

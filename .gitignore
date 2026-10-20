@@ -15,3 +15,5 @@ TestResults/
 .testmc*/
 *.mrpack
 
+
+.testpack/
