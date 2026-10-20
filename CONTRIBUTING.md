@@ -18,11 +18,20 @@ dotnet --version
 ## 构建与运行
 
 ```powershell
-# 图形界面（产物：src\McDl.App\bin\Release\net48\McDl.exe）
+# 一次构建全部（App / Cli / Core / Tests）
+dotnet build mcdl.sln -c Release
+
+# 或者只构建某一部分（产物：src\McDl.App\bin\Release\net48\McDl.exe）
 dotnet build src\McDl.App\McDl.App.csproj -c Release
 
 # 命令行（产物：src\McDl.Cli\bin\Release\net48\mcdl.exe，程序集名为 mcdl）
 dotnet build src\McDl.Cli\McDl.Cli.csproj -c Release
+```
+
+提交前请跑一遍单元测试（**不要用 `dotnet test`**，原因见 `ARCHITECTURE.md`）：
+
+```powershell
+pwsh -File tools\test.ps1
 ```
 
 直接运行编译产物：

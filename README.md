@@ -48,11 +48,16 @@ McDl.Cli.exe install 1.6.4 --root "D:\Games\mc-1.6.4" --no-assets
 
 ```powershell
 # 只需要 .NET SDK 用于编译；运行环境是 .NET Framework 4.8
-dotnet build src\McDl.App\McDl.App.csproj -c Release
-dotnet build src\McDl.Cli\McDl.Cli.csproj -c Release
+dotnet build mcdl.sln -c Release
 ```
 
-产物：`src\McDl.App\bin\Release\net48\McDl.exe`（Costura 打包，单文件约 360 KB）。
+产物：`src\McDl.App\bin\Release\net48\McDl.exe`（Costura 打包，单文件约 370 KB）。
+
+运行单元测试：
+
+```powershell
+pwsh -File tools\test.ps1
+```
 
 打发布包：
 
@@ -63,25 +68,27 @@ pwsh -File tools\build-release.ps1
 ## 项目结构
 
 ```
-src/McDl.Core/            下载引擎与解析逻辑（不依赖 WinForms）
-  Models.cs               版本清单 / 版本 JSON 的数据模型
-  Json.cs                 基于 DataContractJsonSerializer 的轻量 JSON 解析
-  MirrorRouter.cs         官方 + BMCLAPI 的地址改写与失败降权
-  DownloadEngine.cs       并行下载、SHA1 校验、.part 断点续传、重试
-  VanillaResolver.cs      版本清单 → 文件任务（含 natives / legacy 资源树）
-  InstallPlan.cs          解析结果与落盘执行
-  NativesUnpacker.cs      natives zip 解压（过滤 META-INF）
-  PlatformInfo.cs         路径与默认安装目录
+src/McDl.Core/            下载与解析逻辑（不依赖 WinForms）
+  Api/                    对外门面：Installer / InstallRequest / InstallSummary
+  Sources/                安装来源：VanillaSource / ModpackSource / FabricLoader
+  Engine/                 DownloadEngine（并发、校验、续传）、MirrorRouter（镜像降权）
+  Minecraft/              版本 JSON 模型、VanillaResolver、NativesUnpacker
+  Support/                Json、PlatformInfo
 src/McDl.App/             WinForms 图形界面
 src/McDl.Cli/             命令行入口
-tools/                    截图、UI 自动化、发布脚本
+tests/McDl.Tests/         单元测试（xUnit）
+tools/                    发布、测试、截图与 UI 自动化脚本
 ```
+
+分层、扩展点与设计取舍详见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ## 设计说明
 
 **镜像策略**：`MirrorRouter` 持有官方与 BMCLAPI 两套地址改写规则。每次下载失败会给该镜像记一次惩罚（指数增长、有上限），成功则衰减；排序时按「惩罚权重 + 轮转」挑一个可用地址，因此官方慢/挂掉时能自动切换到镜像，恢复后又优先回到官方。
 
-**为什么自己解析版本 JSON**：目标环境是裸 `.NET Framework 4.8`，引入 Newtonsoft.Json 会让单文件体积和依赖都变重。`Json.cs` 用 `DataContractJsonSerializer` + `JsonValue` 中转，够用且零依赖。
+**为什么自己解析版本 JSON**：目标环境是裸 `.NET Framework 4.8`，不想为解析再拖入额外依赖。`Support/Json.cs` 只封装了 Newtonsoft.Json 的读写与日期处理（`DateParseHandling.None`，避免版本号里形如 `1.21` 的字符串被误判成日期），序列化模型集中在 `Minecraft/Models.cs`。
+
+**整合包范围**：`.mrpack` 只安装**游戏本体 + 对应 loader 加载器**，不含模组/资源包等其它文件——这部分由启动器负责。
 
 **断点续传的边界**：`.part` 文件只按已下载字节续传，不校验部分内容；只有完整文件才会落成正式名字并做 SHA1 校验。校验失败的文件会被视为不存在并重新下载。
 
