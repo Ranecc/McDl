@@ -5,13 +5,14 @@ using Newtonsoft.Json;
 
 namespace McDl.Core
 {
-    /// <summary>Thin JSON helpers so every model goes through one serializer configuration.</summary>
+    /// <summary>统一的 JSON 读写，保证所有模型用同一套序列化设置。</summary>
     public static class Json
     {
         private static readonly JsonSerializerSettings ReadSettings = new JsonSerializerSettings
         {
             NullValueHandling = NullValueHandling.Ignore,
             MissingMemberHandling = MissingMemberHandling.Ignore,
+            // 不能开日期推断：版本号 "1.21" 这类字符串会被 Newtonsoft 当成日期。
             DateParseHandling = DateParseHandling.None
         };
 

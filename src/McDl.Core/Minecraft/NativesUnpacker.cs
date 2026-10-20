@@ -6,10 +6,10 @@ using System.Threading;
 
 namespace McDl.Core
 {
-    /// <summary>Unpacks native jars into the version directory, honouring the extract rules.</summary>
+    /// <summary>把 natives 包解到版本目录，按版本 JSON 的 extract 规则过滤。</summary>
     public static class NativesUnpacker
     {
-        /// <summary>Patterns every extraction starts from: archive bookkeeping, no game payload.</summary>
+        /// <summary>默认排除项：压缩包自带的记账文件，不是游戏需要的东西。</summary>
         public static readonly List<string> DefaultExcludes = new List<string>
         {
             "META-INF/",
@@ -26,8 +26,7 @@ namespace McDl.Core
             var materialized = new List<NativesExtraction>();
             foreach (var extraction in extractions) if (extraction != null) materialized.Add(extraction);
 
-            // A previous run may have left dlls behind (another architecture, an older version of the
-            // library). They share file names with the fresh ones, so the folder is rebuilt from scratch.
+            // 上次可能留下别的架构或旧版 dll，文件名和新文件相同，只能先清空目录。
             ClearTargetDirectories(materialized, ct);
 
             foreach (var extraction in materialized)
@@ -64,7 +63,7 @@ namespace McDl.Core
                         }
                         catch (IOException)
                         {
-                            // Some natives ship the same dll twice (32/64 bit); keep the last one.
+                            // 个别包会重复带同名 dll（32/64 位），保留最后解出来的那个。
                         }
                         catch (UnauthorizedAccessException)
                         {
@@ -95,7 +94,7 @@ namespace McDl.Core
                     }
                     catch (IOException)
                     {
-                        // A file locked by a running game keeps its old copy; nothing else to do.
+                        // 游戏正开着会锁住 dll；保留旧文件，不让整个安装失败。
                     }
                     catch (UnauthorizedAccessException)
                     {

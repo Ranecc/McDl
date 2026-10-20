@@ -2,18 +2,18 @@ using System.Collections.Generic;
 
 namespace McDl.Core
 {
-    /// <summary>Outcome of one install run, in a shape both the CLI and the UI can print.</summary>
+    /// <summary>一次安装的结果，CLI 和 UI 都按这个结构展示。</summary>
     public sealed class InstallSummary
     {
         public InstallPlan Plan { get; set; }
 
-        /// <summary>Transfer counters; null when the run failed before the download phase.</summary>
+        /// <summary>传输统计；下载开始前就失败时为 null。</summary>
         public TransferStats Stats { get; set; }
 
-        /// <summary>Every file that could not be placed, with its first error.</summary>
+        /// <summary>没能落盘的文件及首个错误。</summary>
         public IReadOnlyList<string> Failures { get; set; }
 
-        /// <summary>Set when the run aborted for a reason other than individual files.</summary>
+        /// <summary>整体中断的原因（不是单个文件失败时）。</summary>
         public string Error { get; set; }
 
         public bool Succeeded => Error == null && (Stats != null && Stats.FailedFiles == 0) &&

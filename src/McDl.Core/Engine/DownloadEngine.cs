@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace McDl.Core
 {
-    /// <summary>One file to place on disk: where it comes from, where it goes, how it is verified.</summary>
+    /// <summary>一个待落盘文件：从哪来、到哪去、怎么校验。Sha1 为空表示不校验。</summary>
     public sealed class FileTask
     {
         public string Label { get; set; }
@@ -24,6 +24,7 @@ namespace McDl.Core
         public bool Optional { get; set; }
     }
 
+    /// <summary>一次传输的快照，进度回调和最终结果共用。</summary>
     public sealed class TransferStats
     {
         public int TotalFiles { get; set; }
@@ -36,6 +37,7 @@ namespace McDl.Core
         public string CurrentFile { get; set; }
         public string LastError { get; set; }
 
+        /// <summary>没有字节数（老版本或空计划）时退回按文件数算。</summary>
         public double Percent
         {
             get
@@ -47,7 +49,10 @@ namespace McDl.Core
         }
     }
 
-    /// <summary>Bounded-concurrency, resumable, checksum-verified downloader with mirror failover.</summary>
+    /// <summary>
+    /// 并发下载器：固定线程数、.part 断点续传、SHA1 校验、镜像回退。
+    /// 单个文件失败不会中断其它文件，最后统一抛 IOException；调用方再看 Failures。
+    /// </summary>
     public sealed class DownloadEngine : IDisposable
     {
         public const string DefaultUserAgent = "mcdl/0.1 (+https://github.com/)";
@@ -87,8 +92,10 @@ namespace McDl.Core
             _http.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent ?? DefaultUserAgent);
         }
 
+        /// <summary>本次运行失败的文件及错误，重跑前不会自动清空。</summary>
         public IReadOnlyList<string> Failures => _failures;
 
+        /// <summary>下载一段文本（元数据）；按候选镜像依次重试，全部失败才抛。</summary>
         public async Task<string> GetTextAsync(string url, SourceKind kind, CancellationToken ct)
         {
             var errors = new List<string>();
@@ -124,6 +131,7 @@ namespace McDl.Core
             throw new HttpRequestException("all sources failed for " + url + " :: " + string.Join(" | ", errors));
         }
 
+        /// <summary>跑完整个文件列表。TargetPath 相同只下一次，方便来源把重复项直接塞进来。</summary>
         public async Task<TransferStats> RunAsync(IEnumerable<FileTask> tasks, IProgress<TransferStats> progress,
             CancellationToken ct)
         {
@@ -179,6 +187,7 @@ namespace McDl.Core
         {
             _current = task.Label ?? Path.GetFileName(task.TargetPath);
 
+            // 已存在且哈希对得上就算完成；这是“重复点安装会自动跳过”的实现。
             if (File.Exists(task.TargetPath) && HashMatches(task.TargetPath, task.Sha1))
             {
                 Interlocked.Increment(ref _skippedFiles);
@@ -232,6 +241,7 @@ namespace McDl.Core
 
         private async Task DownloadToFileAsync(string url, string partPath, FileTask task, CancellationToken ct)
         {
+            // .part 比目标还大说明上次写坏了（或换过版本），丢掉重下。
             long existing = File.Exists(partPath) ? new FileInfo(partPath).Length : 0;
             if (task.Size > 0 && existing > task.Size)
             {
@@ -246,6 +256,7 @@ namespace McDl.Core
                 using (var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
                            .ConfigureAwait(false))
                 {
+                    // 服务器不支持 Range 会回 200，此时只能从头写。
                     if (existing > 0 && response.StatusCode != HttpStatusCode.PartialContent) existing = 0;
                     response.EnsureSuccessStatusCode();
 
@@ -273,6 +284,7 @@ namespace McDl.Core
             }
         }
 
+        /// <summary>SHA1 为空时只判断文件存在；用于没有哈希的上游。</summary>
         public static bool HashMatches(string path, string sha1)
         {
             if (string.IsNullOrEmpty(sha1)) return File.Exists(path);
@@ -293,6 +305,7 @@ namespace McDl.Core
             var handler = _progress;
             if (handler == null) return;
 
+            // 每秒最多 8 次；UI 重绘比网络回调慢，没必要每个 buffer 都 Report。
             var now = Stopwatch.GetTimestamp();
             var last = Interlocked.Read(ref _lastReportTick);
             if (!force && now - last < Stopwatch.Frequency / 8) return;
@@ -334,6 +347,7 @@ namespace McDl.Core
             }
             catch (IOException)
             {
+                // 删不掉就留给下次覆盖；这里不值得让整个下载失败。
             }
         }
 

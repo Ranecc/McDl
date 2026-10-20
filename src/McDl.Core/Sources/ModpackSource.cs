@@ -1,17 +1,14 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace McDl.Core
 {
     /// <summary>
-    /// Installs the game body a modpack needs: the vanilla version named by its dependency list,
-    /// plus the Fabric loader libraries when the pack asks for one.
+    /// 整合包安装：先按格式读出包信息，再装对应的原版本体，最后把加载器挂上去。
+    /// 只做游戏本体，包里的模组与配置文件不下载。
     /// </summary>
-    /// <remarks>
-    /// Deliberately limited to the game itself ("游戏本体"). Mod files inside the pack are described
-    /// by <see cref="ModpackManifest.Files"/> and are not downloaded yet.
-    /// </remarks>
     public sealed class ModpackSource : IInstallSource
     {
         public string Kind => "modpack";
@@ -24,19 +21,19 @@ namespace McDl.Core
             var archivePath = request.ModpackPath;
             if (string.IsNullOrWhiteSpace(archivePath))
                 throw new ArgumentException("modpack path is required");
-            if (!System.IO.File.Exists(archivePath))
-                throw new System.IO.FileNotFoundException("modpack not found: " + archivePath, archivePath);
+            if (!File.Exists(archivePath))
+                throw new FileNotFoundException("modpack not found: " + archivePath, archivePath);
 
-            var pack = ModpackArchive.ReadIndex(archivePath);
+            var pack = PackFormats.Read(archivePath);
+            context.Log?.Invoke("识别为 " + pack.FormatId + " 整合包：" + pack.DisplayName);
 
             var gameVersion = pack.MinecraftVersion;
             if (string.IsNullOrWhiteSpace(gameVersion))
-                throw new System.IO.InvalidDataException("modpack does not declare a minecraft version: " + archivePath);
+                throw new InvalidDataException("整合包没有写 Minecraft 版本：" + archivePath);
 
-            var unsupported = pack.UnsupportedLoader;
-            if (unsupported != null)
-                throw new NotSupportedException("暂时只支持 Fabric 整合包，检测到 " + unsupported +
-                                                 "。可以先安装 " + gameVersion + " 原版本体。");
+            if (!pack.Loader.IsSupported)
+                throw new NotSupportedException(pack.Loader.UnsupportedMessage
+                                                ?? ("暂时不支持 " + pack.Loader.DisplayName + " 加载器"));
 
             var root = request.ResolveRoot();
             var manifest = await VanillaSource.FetchManifestAsync(context.Engine, ct).ConfigureAwait(false);
@@ -50,26 +47,30 @@ namespace McDl.Core
             var profileId = pack.BuildProfileId();
             plan.Label = pack.DisplayName;
 
-            var loaderVersion = pack.FabricLoaderVersion;
-            if (!string.IsNullOrWhiteSpace(loaderVersion))
+            if (pack.Loader.Kind == LoaderKind.None)
             {
-                var meta = await FabricLoader.FetchAsync(context.Engine, gameVersion, loaderVersion, ct)
-                    .ConfigureAwait(false);
-                FabricLoader.Apply(plan, meta, profileId);
-            }
-            else
-            {
-                // Vanilla pack: still expose a profile so launchers see the pack name.
-                var path = System.IO.Path.Combine(root, "versions", profileId, profileId + ".json");
-                Json.Save(path, new
-                {
-                    id = profileId,
-                    inheritsFrom = plan.Detail != null ? plan.Detail.Id : gameVersion,
-                    type = "release"
-                });
+                WriteVanillaProfile(plan, root, profileId, gameVersion);
+                return plan;
             }
 
+            var installer = LoaderInstallers.For(pack.Loader.Kind);
+            context.Log?.Invoke("准备安装 " + installer.DisplayName +
+                                (pack.Loader.Version == null ? "" : " " + pack.Loader.Version));
+            await installer.ApplyAsync(context, plan, gameVersion, pack.Loader, profileId, ct).ConfigureAwait(false);
+
             return plan;
+        }
+
+        /// <summary>纯原版包也写一个 profile，启动器里能看到包名。</summary>
+        private static void WriteVanillaProfile(InstallPlan plan, string root, string profileId, string gameVersion)
+        {
+            var path = Path.Combine(root, "versions", profileId, profileId + ".json");
+            Json.Save(path, new
+            {
+                id = profileId,
+                inheritsFrom = plan.Detail != null ? plan.Detail.Id : gameVersion,
+                type = "release"
+            });
         }
     }
 }

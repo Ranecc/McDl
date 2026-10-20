@@ -17,3 +17,5 @@ TestResults/
 
 
 .testpack/
+.tmp-plan/
+.minecraft/

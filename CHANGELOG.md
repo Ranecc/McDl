@@ -2,7 +2,24 @@
 
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.3.0] - 2026-10-21
+
+### 添加
+
+- 添加：整合包格式扩展——CurseForge / HMCL 导出的 `manifest.json`、MCBBS 的 `mcbbs.packmeta`、HMCL 的 `modpack.json`，与原有的 Modrinth `.mrpack` 统一由 `PackFormats.Read` 探测
+- 添加：Forge / NeoForge 自动安装——下载官方 installer，用本机 Java 执行 `--installClient`，并生成指向加载器版本的 profile
+- 添加：Java 探测（`JAVA_HOME`、`PATH`、注册表、常见安装目录、Mojang runtime），按游戏元数据或版本兜底选择主版本
+- 添加：`docs/` 文档体系（架构、整合包、加载器、命令行、测试、贡献），`tools/api-surface.ps1` 生成公开 API 一览
+- 添加：GUI 与 CLI 按内容识别四种整合包格式，不再只看 `.mrpack` 扩展名
+- 添加：GUI 支持把任意受支持的整合包拖进窗口或作为启动参数
+
+### 变更
+
+- 变更：Quilt 明确列为不支持，检测到会在解析阶段给出说明
+- 变更：测试增至 115 个用例，覆盖整合包读取器、加载器版本拼接与 Java 探测
+- 变更：根目录 `ARCHITECTURE.md` 并入 `docs/architecture.md`，`CONTRIBUTING.md` 改为指向 `docs/contributing.md` 的入口
+- 变更：`mcdl plan` 也接受整合包路径，可先看整合包要下多少东西
+- 变更：窗口标题从「Minecraft 原版下载器」改为「Minecraft 下载器」
 
 ## [0.2.1] - 2026-10-21
 
@@ -18,7 +35,7 @@
 - 添加：整合包游戏本体下载——读取 Modrinth `.mrpack` 索引，安装其声明的 Minecraft 版本与 Fabric 加载器，并生成 `inheritsFrom` 版本 profile
 - 添加：`.mrpack` 可直接拖入窗口，或作为命令行参数启动 `McDl.exe`
 - 添加：下载引擎 / 图形界面 / 命令行的分层重构，`McDl.Core` 不再依赖界面层（`Api / Sources / Engine / Minecraft / Support`）
-- 添加：`mcdl.sln`、xUnit 测试项目（52 个用例）与 `ARCHITECTURE.md`
+- 添加：`mcdl.sln`、xUnit 测试项目（52 个用例）与 `ARCHITECTURE.md`（现已并入 `docs/architecture.md`）
 - 添加：GitHub Actions（CI 构建 + 打 tag 自动发布）、Issue/PR 模板、Dependabot 配置
 
 ### 变更

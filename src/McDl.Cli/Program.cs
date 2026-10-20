@@ -87,12 +87,12 @@ namespace McDl.Cli
             Console.WriteLine();
             Console.WriteLine("usage:");
             Console.WriteLine("  mcdl list [--type release|snapshot] [--limit N]");
-            Console.WriteLine("  mcdl plan <version> [--root DIR] [--no-assets]");
+            Console.WriteLine("  mcdl plan <version|pack.zip> [--root DIR] [--no-assets]");
             Console.WriteLine("  mcdl install <version> [--root DIR] [--no-assets] [--threads N]");
-            Console.WriteLine("  mcdl modpack <file.mrpack> [--root DIR] [--no-assets] [--threads N]");
+            Console.WriteLine("  mcdl modpack <file> [--root DIR] [--no-assets] [--threads N]");
             Console.WriteLine();
             Console.WriteLine("version: an exact id such as 1.21.4, or \"latest\" / \"latest-snapshot\"");
-            Console.WriteLine("modpack: a Modrinth .mrpack file; the game body it requires is installed");
+            Console.WriteLine("modpack: Modrinth/.mrpack, CurseForge/HMCL manifest.json, MCBBS/packmeta, HMCL modpack.json");
             Console.WriteLine("root   : target .minecraft directory (defaults to ./.minecraft)");
         }
     }
@@ -202,7 +202,21 @@ namespace McDl.Cli
         {
             using (var installer = new Installer(MirrorRouter.CreateDefault(), 4))
             {
-                var plan = await installer.ResolveAsync(cli.ToRequest(InstallKind.Vanilla), ct).ConfigureAwait(false);
+                installer.Log = line => Console.WriteLine("· " + line);
+
+                var target = cli.First;
+                InstallRequest request;
+                if (!string.IsNullOrWhiteSpace(target) && File.Exists(target))
+                {
+                    request = cli.ToRequest(InstallKind.Modpack);
+                    request.ModpackPath = Path.GetFullPath(target);
+                }
+                else
+                {
+                    request = cli.ToRequest(InstallKind.Vanilla);
+                }
+
+                var plan = await installer.ResolveAsync(request, ct).ConfigureAwait(false);
                 PrintPlan(plan);
             }
             return 0;
@@ -249,6 +263,8 @@ namespace McDl.Cli
 
             using (var installer = new Installer(MirrorRouter.CreateDefault(), threads))
             {
+                installer.Log = line => Console.WriteLine("· " + line);
+
                 var target = request.Kind == InstallKind.Modpack ? request.ModpackPath : request.Version;
                 Console.Write("resolving " + target + " ... ");
 

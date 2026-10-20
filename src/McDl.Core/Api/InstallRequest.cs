@@ -2,31 +2,31 @@ using System;
 
 namespace McDl.Core
 {
-    /// <summary>What kind of thing the user asked to install.</summary>
+    /// <summary>用户要装的东西的类型。</summary>
     public enum InstallKind
     {
-        /// <summary>A version straight from the official version manifest.</summary>
+        /// <summary>直接来自官方版本清单的版本。</summary>
         Vanilla,
 
-        /// <summary>A modpack archive; the game body comes from the pack's dependency list.</summary>
+        /// <summary>整合包；游戏本体按包里的依赖声明安装，模组文件不装。</summary>
         Modpack
     }
 
-    /// <summary>A single user request; the only input the install pipeline needs.</summary>
+    /// <summary>一次安装请求，安装流水线唯一的输入。</summary>
     public sealed class InstallRequest
     {
         public InstallKind Kind { get; set; } = InstallKind.Vanilla;
 
-        /// <summary>Target .minecraft directory (absolute or relative to the process directory).</summary>
+        /// <summary>目标 .minecraft 目录；相对路径按工作目录算。</summary>
         public string Root { get; set; }
 
-        /// <summary>Vanilla version id, or "latest" / "latest-snapshot".</summary>
+        /// <summary>原版版本号，或 "latest" / "latest-snapshot"。</summary>
         public string Version { get; set; } = "latest";
 
-        /// <summary>Local path of a .mrpack / .zip modpack archive (used when <see cref="Kind"/> is Modpack).</summary>
+        /// <summary>整合包路径，格式交给 PackFormats 判断。</summary>
         public string ModpackPath { get; set; }
 
-        /// <summary>Whether the asset index and its objects are downloaded.</summary>
+        /// <summary>是否下载资源索引及 assets 对象。</summary>
         public bool IncludeAssets { get; set; } = true;
 
         public InstallRequest Clone()

@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace McDl.Core
 {
-    /// <summary>Describes the host we are resolving files for; also the input to rule evaluation.</summary>
+    /// <summary>当前主机信息，同时作为 rules 判定的输入。只支持 Windows。</summary>
     public sealed class PlatformInfo
     {
         public string OsName { get; set; }
@@ -26,11 +26,11 @@ namespace McDl.Core
             };
         }
 
-        /// <summary>Classic launchers use 32/64 in native classifier names.</summary>
+        /// <summary>老版本 natives 名里用 32/64，不是 x86/x64。</summary>
         public string ArchBits => Arch == "x86" ? "32" : "64";
     }
 
-    /// <summary>Standard allow/disallow rule evaluation used by version manifests.</summary>
+    /// <summary>版本清单里的 allow/disallow 规则；没有规则视为允许，最后一条匹配的规则生效。</summary>
     public static class RuleEvaluator
     {
         public static bool IsAllowed(IList<RuleEntry> rules, PlatformInfo platform, IDictionary<string, bool> features)
@@ -68,7 +68,7 @@ namespace McDl.Core
                     }
                     catch (ArgumentException)
                     {
-                        // A malformed version regex must not break resolution.
+                        // 版本号正则是上游给的，写坏了也不能让整个解析失败。
                     }
                 }
             }

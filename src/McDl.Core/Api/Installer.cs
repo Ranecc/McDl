@@ -7,9 +7,8 @@ using System.Threading.Tasks;
 namespace McDl.Core
 {
     /// <summary>
-    /// The single entry point of the download library: owns one <see cref="DownloadEngine"/>,
-    /// routes a request to the matching <see cref="IInstallSource"/> and runs the resulting plan.
-    /// Both front ends (CLI and UI) go through this type, so behaviour cannot drift between them.
+    /// 安装流程的唯一入口：持有 <see cref="DownloadEngine"/>，按 <see cref="InstallKind"/> 选来源并执行计划。
+    /// CLI 和 WinForms 都只走这里，避免两边行为分叉。分层和扩展点见 docs/architecture.md。
     /// </summary>
     public sealed class Installer : IDisposable
     {
@@ -28,16 +27,19 @@ namespace McDl.Core
             };
         }
 
-        /// <summary>Files that failed during the last run, with their first error.</summary>
+        /// <summary>上次安装失败的文件及首个错误。</summary>
         public IReadOnlyList<string> Failures => _engine.Failures;
 
-        /// <summary>The official version manifest: every published version plus the latest pointers.</summary>
+        /// <summary>前端接日志的地方；null 表示不输出。</summary>
+        public Action<string> Log { get; set; }
+
+        /// <summary>官方版本清单（所有版本 + latest 指针）。</summary>
         public Task<VersionManifest> ListVersionsAsync(CancellationToken ct)
         {
             return VanillaSource.FetchManifestAsync(_engine, ct);
         }
 
-        /// <summary>Resolves what an install would download, without downloading it.</summary>
+        /// <summary>只解析要下载什么，不下载 payload。注意版本 JSON 和 asset index 在解析阶段就会落盘。</summary>
         public Task<InstallPlan> ResolveAsync(InstallRequest request, CancellationToken ct)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
@@ -46,15 +48,12 @@ namespace McDl.Core
             if (!_sources.TryGetValue(request.Kind, out source))
                 throw new NotSupportedException("unsupported install kind: " + request.Kind);
 
-            var context = new InstallContext(_engine, _platform);
+            var context = new InstallContext(_engine, _platform, Log);
             return source.ResolveAsync(context, request, ct);
         }
 
-        /// <summary>Resolves and downloads, reporting progress through <paramref name="progress"/>.</summary>
-        /// <param name="onResolved">
-        /// Called once the plan is known and before the first byte is downloaded, so a front end can
-        /// show file counts while the transfer runs.
-        /// </param>
+        /// <summary>解析并下载，进度通过 <paramref name="progress"/> 报告。</summary>
+        /// <param name="onResolved">解析完成、下载第一个字节前回调，前端用来提前显示文件数和体积。</param>
         public async Task<InstallSummary> InstallAsync(InstallRequest request, IProgress<TransferStats> progress,
             CancellationToken ct, Action<InstallPlan> onResolved = null)
         {
@@ -85,7 +84,7 @@ namespace McDl.Core
             }
             catch (IOException ex)
             {
-                // Individual files failed; the engine keeps the per-file details.
+                // 单个文件失败；明细在 engine 的 Failures 里。
                 summary.Error = ex.Message;
             }
             catch (Exception ex)

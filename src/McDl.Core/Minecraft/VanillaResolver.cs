@@ -5,7 +5,7 @@ using System.Text;
 
 namespace McDl.Core
 {
-    /// <summary>A natives jar that has to be unpacked into the version directory.</summary>
+    /// <summary>一个需要解压到版本目录的 natives 包。</summary>
     public sealed class NativesExtraction
     {
         public FileTask Archive { get; set; }
@@ -13,7 +13,7 @@ namespace McDl.Core
         public List<string> Excludes { get; set; }
     }
 
-    /// <summary>Turns a vanilla version document into a plain list of files to fetch.</summary>
+    /// <summary>把原版版本 JSON 拆成普通文件列表。这里只算路径和校验值，不下载。</summary>
     public static class VanillaResolver
     {
         public const string MetaBase = "https://piston-meta.mojang.com";
@@ -73,8 +73,8 @@ namespace McDl.Core
 
                 var artifactTask = BuildTask(library, library.Downloads?.Artifact, librariesRoot);
 
-                // Modern version documents ship natives as standalone classifier artifacts
-                // (":natives-windows"), with the os restriction carried by a rule instead.
+                // 新版本把 natives 当成独立 classifier 发（:natives-windows），
+                // 操作系统限制写在 rules 里，所以这里要同时看 classifier 和 rules。
                 if (artifactTask != null && IsNativeClassifier(nameClassifier))
                 {
                     files.Add(artifactTask);
@@ -89,7 +89,7 @@ namespace McDl.Core
 
                 if (artifactTask != null) files.Add(artifactTask);
 
-                // Legacy layout: an os -> classifier map plus a classifiers dictionary.
+                // 旧版布局：natives 表给出 os → classifier，下载项在 classifiers 字典里。
                 var legacyClassifier = NativeClassifier(library, platform);
                 if (legacyClassifier == null) continue;
 
@@ -125,7 +125,7 @@ namespace McDl.Core
             return files;
         }
 
-        /// <summary>The optional fourth maven segment, e.g. "natives-windows" in a:b:1:natives-windows.</summary>
+        /// <summary>maven 坐标可选的第四段，例如 a:b:1:natives-windows 里的 natives-windows。</summary>
         internal static string ClassifierOf(string name)
         {
             if (string.IsNullOrEmpty(name)) return null;
@@ -139,10 +139,9 @@ namespace McDl.Core
         }
 
         /// <summary>
-        /// Architecture-tagged native classifiers ("natives-windows-arm64") only belong to that
-        /// architecture. Mojang ships all variants with a plain "os.name == windows" rule, so the
-        /// suffix is the only thing that distinguishes them - installing the wrong one puts a
-        /// foreign-architecture dll in the natives folder under the same file name.
+        /// 带架构后缀的 natives（natives-windows-arm64）只能装到对应架构。
+        /// Mojang 给这些变体的规则都只写了 os.name，后缀是唯一区别；装错会把异构 dll
+        /// 以同名文件放进 natives 目录。
         /// </summary>
         internal static bool MatchesArchitecture(string classifier, PlatformInfo platform)
         {
@@ -156,7 +155,7 @@ namespace McDl.Core
             return true;
         }
 
-        /// <summary>Builds the download task for a library artifact, synthesizing a maven URL when needed.</summary>
+        /// <summary>生成库文件的下载任务；没有 url 时按 maven 坐标拼一个。</summary>
         internal static FileTask BuildTask(LibraryEntry library, DownloadEntry entry, string librariesRoot)
         {
             var url = entry?.Url;

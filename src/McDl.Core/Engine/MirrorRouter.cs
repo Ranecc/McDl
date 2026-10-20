@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace McDl.Core
 {
-    /// <summary>Which upstream a URL belongs to. The split exists so every kind can be re-based onto a mirror.</summary>
+    /// <summary>URL 属于哪类上游；分类是为了能分别换到镜像上。</summary>
     public enum SourceKind
     {
         Meta,
@@ -13,6 +13,7 @@ namespace McDl.Core
         Other
     }
 
+    /// <summary>一个可尝试的下载地址，以及它来自哪个镜像配置。</summary>
     public sealed class SourceCandidate
     {
         public string Url { get; set; }
@@ -20,6 +21,7 @@ namespace McDl.Core
         public SourceKind Kind { get; set; }
     }
 
+    /// <summary>一个镜像的基地址；Official 为 true 时不改 URL，直接走官方。</summary>
     public sealed class MirrorProfile
     {
         public string Name { get; set; }
@@ -30,8 +32,8 @@ namespace McDl.Core
     }
 
     /// <summary>
-    /// Rewrites canonical (official) URLs onto mirror endpoints and remembers which profile
-    /// keeps failing so the next request starts from a profile that is actually alive.
+    /// 把官方 URL 改写到镜像上，并按分类记录失败次数；下次请求优先用还活着的镜像。
+    /// 只做 URL 替换，不缓存、不探测。
     /// </summary>
     public sealed class MirrorRouter
     {
@@ -67,6 +69,7 @@ namespace McDl.Core
                 _penalties[kind] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         }
 
+        /// <summary>追加一个镜像；顺序只是初始顺序，实际排序看惩罚分。</summary>
         public MirrorRouter Add(MirrorProfile profile)
         {
             if (profile == null) return this;
@@ -76,6 +79,7 @@ namespace McDl.Core
 
         public IReadOnlyList<MirrorProfile> Profiles => _profiles;
 
+        /// <summary>默认配置：官方 + BMCLAPI。BMCLAPI 的三个基地址分开配，避免 maven 路径拼错。</summary>
         public static MirrorRouter CreateDefault()
         {
             return new MirrorRouter()
@@ -89,6 +93,7 @@ namespace McDl.Core
                 });
         }
 
+        /// <summary>按 host 判断 URL 类型；不认识的 host（Modrinth、Fabric meta 等）归为 Other，不镜像。</summary>
         public static SourceKind Classify(string url)
         {
             if (string.IsNullOrEmpty(url)) return SourceKind.Other;
@@ -99,6 +104,7 @@ namespace McDl.Core
             return SourceKind.Other;
         }
 
+        /// <summary>按当前惩罚分列出候选地址；Other 类只有原始地址。</summary>
         public IReadOnlyList<SourceCandidate> Candidates(string url, SourceKind kind)
         {
             var result = new List<SourceCandidate>();
@@ -124,6 +130,7 @@ namespace McDl.Core
             return result;
         }
 
+        /// <summary>成功一次就把该镜像的清零，让它重新排到前面。</summary>
         public void NoteSuccess(string profile, SourceKind kind)
         {
             if (string.IsNullOrEmpty(profile)) return;
@@ -131,6 +138,7 @@ namespace McDl.Core
             if (_penalties.TryGetValue(kind, out map)) map[profile] = 0;
         }
 
+        /// <summary>失败一次加一分，只影响同类 URL 的排序。</summary>
         public void NoteFailure(string profile, SourceKind kind)
         {
             if (string.IsNullOrEmpty(profile)) return;

@@ -69,7 +69,7 @@ namespace McDl.App
 
         public MainForm(string[] args)
         {
-            Text = "McDl · Minecraft 原版下载器";
+            Text = "McDl · Minecraft 下载器";
             StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new Size(1000, 700);
             MinimumSize = new Size(940, 640);
@@ -96,15 +96,35 @@ namespace McDl.App
             if (initial != null) LoadModpack(initial);
         }
 
+        private static readonly string[] PackExtensions = { ".mrpack", ".zip", ".hmcl" };
+
         private static string FirstModpackArgument(string[] args)
         {
             if (args == null) return null;
             foreach (var arg in args)
             {
-                if (string.IsNullOrEmpty(arg)) continue;
-                if (arg.EndsWith(".mrpack", StringComparison.OrdinalIgnoreCase) && File.Exists(arg)) return arg;
+                if (string.IsNullOrEmpty(arg) || !File.Exists(arg)) continue;
+                if (LooksLikePack(arg)) return arg;
             }
             return null;
+        }
+
+        /// <summary>扩展名只是个提示，真正的判断交给 PackFormats。</summary>
+        private static bool LooksLikePack(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            var extension = Path.GetExtension(path);
+            if (PackExtensions.Any(x => string.Equals(x, extension, StringComparison.OrdinalIgnoreCase))) return true;
+
+            try
+            {
+                PackFormats.Read(path);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         private void OnDragEnter(object sender, DragEventArgs e)
@@ -122,7 +142,7 @@ namespace McDl.App
         {
             var files = e.Data == null ? null : e.Data.GetData(DataFormats.FileDrop) as string[];
             if (files == null) return new string[0];
-            return files.Where(f => f.EndsWith(".mrpack", StringComparison.OrdinalIgnoreCase)).ToArray();
+            return files.Where(f => File.Exists(f) && LooksLikePack(f)).ToArray();
         }
 
         private void BuildHeader()
@@ -151,7 +171,7 @@ namespace McDl.App
 
             _headerSub = new Label
             {
-                Text = "Minecraft 原版文件下载器 · 自研下载引擎 · 断点续传",
+                Text = "原版与整合包本体下载 · 自研引擎 · 断点续传",
                 AutoSize = true,
                 Font = Theme.Ui(9f),
                 ForeColor = Theme.TextMuted,
@@ -644,8 +664,8 @@ namespace McDl.App
         {
             using (var dialog = new OpenFileDialog())
             {
-                dialog.Title = "选择 Modrinth 整合包";
-                dialog.Filter = "Modrinth 整合包 (*.mrpack)|*.mrpack|所有文件 (*.*)|*.*";
+                dialog.Title = "选择整合包";
+                dialog.Filter = "整合包 (*.mrpack;*.zip;*.hmcl)|*.mrpack;*.zip;*.hmcl|所有文件 (*.*)|*.*";
                 dialog.CheckFileExists = true;
 
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
@@ -653,32 +673,32 @@ namespace McDl.App
             }
         }
 
-        /// <summary>Adopts a .mrpack as the pending install: version body first, loader second.</summary>
+        /// <summary>认下这个整合包：先装游戏本体，再装它声明的加载器。</summary>
         private void LoadModpack(string fileName)
         {
-            ModpackManifest pack;
+            PackManifest pack;
             try
             {
-                pack = ModpackArchive.ReadIndex(fileName);
+                pack = PackFormats.Read(fileName);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "无法读取整合包：" + ex.Message, "McDl",
+                MessageBox.Show(this, "读不了这个整合包：" + ex.Message, "McDl",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             if (string.IsNullOrEmpty(pack.MinecraftVersion))
             {
-                MessageBox.Show(this, "整合包没有声明 Minecraft 版本，无法安装。", "McDl",
+                MessageBox.Show(this, "整合包里没写 Minecraft 版本，没法确定装哪个版本。", "McDl",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            if (pack.UnsupportedLoader != null)
+            if (!pack.Loader.IsSupported)
             {
                 MessageBox.Show(this,
-                    "这个整合包需要 " + pack.UnsupportedLoader + "，目前只支持原版与 Fabric。",
+                    pack.Loader.UnsupportedMessage ?? ("这个包要 " + pack.Loader.DisplayName + "，McDl 暂时装不了。"),
                     "暂不支持", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -686,17 +706,21 @@ namespace McDl.App
             _modpackPath = fileName;
             _plan = null;
 
+            var loaderLine = pack.Loader.Kind == LoaderKind.None
+                ? "纯原版"
+                : pack.Loader.DisplayName + (pack.Loader.Version == null ? string.Empty : " " + pack.Loader.Version);
+
             _vTitle.Text = pack.DisplayName;
-            _vMeta.Text = "整合包   ·   Minecraft " + pack.MinecraftVersion +
-                          (pack.FabricLoaderVersion != null ? " + Fabric " + pack.FabricLoaderVersion : string.Empty);
-            _vStats.Text = "将先安装原版游戏本体，再安装对应的加载器（不含模组文件）。";
+            _vMeta.Text = "整合包   ·   Minecraft " + pack.MinecraftVersion + "   ·   " + loaderLine;
+            _vStats.Text = "先装原版游戏本体，再装加载器；包里的模组与配置文件不下载。";
             _bar.Value = 0;
             _pct.Text = "0%";
             _speed.Text = string.Empty;
             _file.Text = string.Empty;
             _list.ClearSelected();
 
-            AppendLog("已选择整合包：" + Path.GetFileName(fileName) + "（MC " + pack.MinecraftVersion + "）");
+            AppendLog(string.Format("已选择整合包：{0}（{1}，MC {2}，{3}）",
+                Path.GetFileName(fileName), pack.FormatId, pack.MinecraftVersion, loaderLine));
         }
 
         private void OnOpenFolder(object sender, EventArgs e)
@@ -793,6 +817,7 @@ namespace McDl.App
                 {
                     using (var installer = new Installer(_router, threads))
                     {
+                        installer.Log = AppendLog;
                         summary = await installer.InstallAsync(request, progressSink, ct, plan => Ui(() =>
                         {
                             _plan = plan;
