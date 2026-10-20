@@ -1,0 +1,38 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{cs,csproj,props}]
+indent_size = 4
+
+# MSBuild 工程文件惯例用 2 空格
+[*.{csproj,props,targets}]
+indent_size = 2
+
+[*.cs]
+dotnet_style_qualification_for_field = false:suggestion
+csharp_new_line_before_open_brace = all
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.{json,jsonc}]
+indent_size = 2
+
+[*.md]
+indent_size = 2
+# Markdown 里行尾双空格表示换行，不能裁剪
+trim_trailing_whitespace = false
+
+[*.ps1]
+indent_size = 4
+end_of_line = crlf
+
+[*.{xml,config}]
+indent_size = 2

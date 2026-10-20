@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>McDl.Core</AssemblyName>
+    <RootNamespace>McDl.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Tests exercise the small internal helpers (classifier parsing, arch matching) directly. -->
+    <InternalsVisibleTo Include="McDl.Tests" />
+  </ItemGroup>
+</Project>

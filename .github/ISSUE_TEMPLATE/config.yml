@@ -1,0 +1,6 @@
+blank_issues_enabled: false
+contact_links:
+  # TODO: 创建 GitHub 仓库后，把下面的 owner/repo 替换成实际地址
+  - name: 使用问题请先看 README
+    url: https://github.com/OWNER/REPO#readme
+    about: 构建命令、CLI 用法、目录结构与常见说明都在 README 里，建议先阅读；确实无法解决再提交 issue。

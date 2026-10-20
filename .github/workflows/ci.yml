@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+# 同一分支/PR 的新提交会取消上一次尚未结束的运行
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 构建 (net48)
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          # 目标框架是 net48，SDK 只用于编译
+          dotnet-version: 8.0.x
+
+      - name: 还原依赖
+        run: |
+          dotnet restore src/McDl.Core/McDl.Core.csproj
+          dotnet restore src/McDl.App/McDl.App.csproj
+          dotnet restore src/McDl.Cli/McDl.Cli.csproj
+
+      - name: 构建 McDl.App
+        run: dotnet build src/McDl.App/McDl.App.csproj -c Release --no-restore
+
+      - name: 构建 McDl.Cli
+        run: dotnet build src/McDl.Cli/McDl.Cli.csproj -c Release --no-restore
+
+      - name: 运行测试（有 tests 目录时）
+        shell: pwsh
+        run: |
+          # dotnet test 在 net48 + 新版 SDK 下无法加载 xUnit 适配器，改用控制台运行器（见 tools/test.ps1）
+          ./tools/test.ps1 -Configuration Release
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcdl-exe
+          path: src/McDl.App/bin/Release/net48/McDl.exe
+          if-no-files-found: error
+          retention-days: 14

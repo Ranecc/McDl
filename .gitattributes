@@ -1,0 +1,23 @@
+# 统一按 CRLF 检出（项目主要在 Windows 上开发）
+* text=auto eol=crlf
+
+# C# 源码
+*.cs text diff=csharp
+*.csproj text
+*.props text
+*.sln text eol=crlf
+
+# 脚本保持 CRLF，避免 Windows 下 pwsh/bat 解析问题
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制文件不做行尾转换与 diff
+*.png binary
+*.ico binary
+*.zip binary
+*.exe binary
+*.dll binary
+
+# 文档
+*.md text eol=crlf

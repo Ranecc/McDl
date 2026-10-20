@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 构建并发布
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          # 生成 Release Notes 需要完整历史
+          fetch-depth: 0
+
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: 从 tag 解析版本号
+        id: version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = $tag -replace '^v', ''
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "无法从 tag '$tag' 解析出版本号"
+          }
+          Write-Host "tag: $tag"
+          Write-Host "version: $version"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: 构建 McDl.App
+        run: dotnet build src/McDl.App/McDl.App.csproj -c Release
+
+      - name: 构建 McDl.Cli
+        run: dotnet build src/McDl.Cli/McDl.Cli.csproj -c Release
+
+      - name: 打包发布压缩包
+        shell: pwsh
+        run: pwsh -File tools/build-release.ps1 -Version '${{ steps.version.outputs.version }}' -SkipBuild
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: McDl ${{ steps.version.outputs.version }}
+          files: dist/McDl-${{ steps.version.outputs.version }}-win.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false

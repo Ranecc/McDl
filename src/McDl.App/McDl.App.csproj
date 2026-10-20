@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>McDl</AssemblyName>
+    <RootNamespace>McDl.App</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <AssemblyTitle>McDl Minecraft 下载器</AssemblyTitle>
+    <Product>McDl</Product>
+    <Description>Standalone Minecraft file downloader</Description>
+    <Version>0.1.0</Version>
+    <FileVersion>0.1.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\McDl.Core\McDl.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Costura.Fody" Version="5.7.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

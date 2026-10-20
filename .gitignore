@@ -1,0 +1,17 @@
+bin/
+obj/
+dist/
+.shots/
+.testmc/
+.testgui/
+*.user
+*.suo
+
+# test/diagnostic leftovers
+testdiag*.txt
+TestResults/
+.testref/
+.testgui*/
+.testmc*/
+*.mrpack
+
