@@ -35,6 +35,24 @@ jobs:
         shell: pwsh
         run: dotnet --version
 
+      # 编译输入带 CRLF 会让 PDB 文档校验和、模块版本号变化，同一提交产出的 exe 就不同。
+      # .gitattributes 已钉死 LF，这里拦住绕过属性（例如以二进制方式提交）的情况。
+      - name: Check line endings of compile inputs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bad = @()
+          foreach ($path in (git ls-files)) {
+            if ($path -notmatch '\.(cs|csproj|props|json|xml|targets)$') { continue }
+            if (-not (Test-Path -LiteralPath $path)) { continue }
+            $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $path))
+            if ([Array]::IndexOf($bytes, [byte]13) -ge 0) { $bad += $path }
+          }
+          if ($bad.Count -gt 0) {
+            throw ("以下编译输入含 CRLF，发布产物将不可复现：" + [Environment]::NewLine + ($bad -join [Environment]::NewLine))
+          }
+          Write-Host '编译输入全部为 LF。'
+
       - name: Restore (locked mode)
         shell: pwsh
         run: dotnet restore mcdl.sln --locked-mode

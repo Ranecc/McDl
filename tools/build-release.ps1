@@ -192,6 +192,21 @@ $dirty = $describe.EndsWith('-dirty')
 
 Write-Step "构建 McDl $Version（$Configuration，SDK $dotnetVersion，提交 $($commit.Substring(0,8))$(if ($dirty) { ' + 未提交改动' })）"
 
+# 编译输入里出现 CRLF 会让 PDB 文档校验和、进而模块版本号（MVID）变化，
+# 同一提交在不同检出环境下就会得到不同的 exe。.gitattributes 已经钉死 LF，
+# 这里再兜一层：谁把工作树改回 CRLF，打包直接失败而不是悄悄产出不可复现的哈希。
+$crlfInputs = @()
+foreach ($path in (& git -C $repoRoot ls-files)) {
+    if ($path -notmatch '\.(cs|csproj|props|json|xml|targets)$') { continue }
+    $full = Join-Path $repoRoot $path
+    if (-not (Test-Path -LiteralPath $full)) { continue }
+    $bytes = [System.IO.File]::ReadAllBytes($full)
+    if ([Array]::IndexOf($bytes, [byte]13) -ge 0) { $crlfInputs += $path }
+}
+if ($crlfInputs.Count -gt 0) {
+    throw ("以下编译输入含 CRLF，会让发布产物不可复现。请设置 `git config core.autocrlf false` 后重新检出：" + [Environment]::NewLine + ($crlfInputs -join [Environment]::NewLine))
+}
+
 $buildProps = @(
     "-p:Version=$Version",
     "-p:FileVersion=$Version.0",

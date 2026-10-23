@@ -2,6 +2,14 @@
 
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.3] - 2026-10-23
+
+### 修复
+
+- 修复：`.gitattributes` 改为统一按 LF 检出（仅 `*.sln`、`*.ps1`、`*.bat`、`*.cmd` 保留 CRLF）。C# 源码的行尾会进 PDB 的文档校验和，进而改变模块版本号：CI 检出 CRLF、本机工作树是 LF，同一提交算出的 `McDl.Core.dll` 就不同（0.4.2 实测：CI `12F9B609…`、本机 `6FBFC4D7…`），内嵌它的单文件 exe 随之整块不同
+- 添加：`tools/build-release.ps1` 与 CI 增加行尾检查，编译输入里出现 CRLF 直接失败，避免再次悄悄产出无法复现的哈希
+- 文档：`docs/reproducible-builds.md` 记录第三条根因（行尾 → PDB 文档校验和 → MVID），并给出 Windows 参与者的 `core.autocrlf false` 配置
+
 ## [0.4.2] - 2026-10-23
 
 ### 修复
