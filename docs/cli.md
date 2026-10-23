@@ -24,6 +24,7 @@ mcdl list [--type release|snapshot] [--limit N]
 mcdl plan <version|packfile> [--root DIR] [--no-assets]
 mcdl install <version> [--root DIR] [--no-assets] [--threads N]
 mcdl modpack <file> [--root DIR] [--no-assets] [--threads N]
+mcdl verify <version|pack.zip> --root DIR [--no-assets] [--threads N]
 ```
 
 不带参数、`-h`、`--help`、`help` 都打印帮助。未知命令打印 `unknown command: xxx` 并返回 1。
@@ -32,7 +33,7 @@ mcdl modpack <file> [--root DIR] [--no-assets] [--threads N]
 
 | 参数 | 含义 | 默认 |
 | --- | --- | --- |
-| `--root DIR` | 目标 `.minecraft` 目录 | 当前目录下的 `.minecraft` |
+| `--root DIR` | 目标 `.minecraft` 目录 | 当前目录下的 `.minecraft`；`verify` 下必填 |
 | `--no-assets` | 不下载 assets，也不下资源索引 | 下载 |
 | `--threads N` | 并发下载数 | 8 |
 | `--type` | 只用于 `list`，按版本类型过滤 | 不过滤 |
@@ -164,15 +165,45 @@ mcdl modpack .\某个整合包.mrpack --root D:\Games\.minecraft --threads 8
 
 不支持的加载器在解析阶段就失败，不会先下一半文件。格式细节见 [packs.md](packs.md)，Java 要求见 [loaders.md](loaders.md)。
 
+## verify
+
+只解析、不下载，然后逐个复核磁盘上已有的文件：在不在、大小、SHA1。
+
+```powershell
+mcdl verify 1.21.4 --root D:\Games\.minecraft
+```
+
+```
+resolving 1.21.4 ... 1.21.4 (1.21.4), 69 files
+root: D:\Games\.minecraft
+verifying ...
+校验 69 个文件：全部一致
+```
+
+目标可以是版本号，也可以是一个已存在的整合包文件，按整合包解析。有文件缺失或哈希不符时逐条列出，返回 2：
+
+```
+verifying ...
+校验 69 个文件：缺失 1 个，哈希不符 1 个
+  不符 1.21.4.jar：D:\Games\.minecraft\versions\1.21.4\1.21.4.jar（大小 28335587 / 28335587 字节）
+  缺失 jackson-annotations-2.13.4.jar：...\jackson-annotations-2.13.4.jar
+```
+
+`--root` 在 `verify` 下是必填的：默认的 `./.minecraft` 常常是空目录，「全部缺失」的结论没有意义。缺 `--root` 或缺目标时打印 usage 并返回 1。
+
+校验只报告，不删除、不自动修复。补齐用 `install`：干净的文件按 SHA1 跳过，只重新下载缺失与不符的那些。语义与边界见 [verification.md](verification.md)。
+
 ## 退出码
 
 | 码 | 含义 |
 | --- | --- |
-| 0 | 成功（`list` / `plan` 正常完成，`install` / `modpack` 没有失败文件） |
-| 1 | 参数错误、解析失败、下载失败、installer 失败 |
-| 2 | Ctrl+C 取消 |
+| 0 | 成功（`list` / `plan` / `verify` 正常完成且全部一致，`install` / `modpack` 没有失败文件） |
+| 1 | 参数错误（含 `verify` 缺 `--root`）、解析失败、下载失败、installer 失败 |
+| 2 | `verify` 发现缺失或哈希不符；或被 Ctrl+C 取消 |
 
 取消时 stderr 只有一行 `cancelled`。已经下好的文件保留，重跑会跳过。
+
+2 有两种来源，脚本里要区分的话：先看 stderr 有没有 `cancelled`，或者在 `verify` 的上下文里把 2 解释成「文件有问题」。
 
 ## 脚本里的用法
 
@@ -182,6 +213,12 @@ $root = 'D:\Games\.minecraft'
 if ($LASTEXITCODE -ne 0) { throw 'plan failed' }
 .\mcdl.exe install 1.20.1 --root $root --threads 16
 if ($LASTEXITCODE -ne 0) { throw 'install failed' }
+.\mcdl.exe verify 1.20.1 --root $root
+switch ($LASTEXITCODE) {
+    0 { '文件一致' }
+    2 { '有文件缺失或被改，重跑 install 补齐' }
+    default { throw 'verify 执行失败' }
+}
 ```
 
 不需要先清目录。`install` 对已经存在且 SHA1 正确的文件会直接跳过，适合放在启动脚本或部署脚本里反复跑。

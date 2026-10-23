@@ -10,7 +10,7 @@ pwsh -NoProfile -File tools\test.ps1
 
 **不要用 `dotnet test`。** 新版 SDK 自带的 vstest ObjectModel 在 net48 测试宿主里加载不了 xUnit 2.x 适配器，会报 “no tests available”。`tools\test.ps1` 把 `xunit.runner.console` 2.9.3 从 NuGet 全局缓存里找出来直接跑，CI 用的也是这个脚本。
 
-当前是 115 个用例（`[Theory]` 的每一行算一个），全绿大约 0.3 秒。
+当前是 136 个用例（`[Theory]` 的每一行算一个），全绿大约 0.3 秒。
 
 ## 测试分三层
 
@@ -19,6 +19,7 @@ pwsh -NoProfile -File tools\test.ps1
 - `RuleEvaluatorTests`：规则匹配。没有规则默认允许；OS 名字、架构、版本正则；allow 后接 disallow；features 门槛；坏正则被忽略。
 - `VanillaResolverTests`：Maven 坐标转路径、classifier 解析、natives 分类器识别、架构别名（`natives-windows-arm64` 只匹配 arm64）、老版本 `natives` map 的 `${arch}` 替换、`TotalBytes` 把可选文件也算进去。
 - `LoaderTests`：Java 版本行解析（`1.8.0_402` → 8、`21.0.1` → 21、非版本行返回 null）、Forge / NeoForge 的 installer 坐标和文件名、版本拼接（已带游戏版本前缀时不重复拼、NeoForge 1.20.2+ 用独立版本号）、缺版本时抛错、`RequiredJavaMajor` 的元数据优先与兜底、版本目录命名。
+- `InstallVerifierTests`：一致即干净、哈希大小写不敏感、缺失、大小相同但内容不符、大小不符时不看哈希、计划没给哈希或大小、空计划与 null 计划、已取消的 token（空计划也要抛）、重复路径只查一次、进度不丢不重。
 
 **合成 zip。** 测试自己生成临时 zip 和目录，不依赖仓库里的二进制夹具。
 
@@ -58,6 +59,28 @@ Test-Path "$root\assets\indexes\5.json"            # True
 
 再跑一次同样的 `install`，应该输出 `0 downloaded, 3649 already present, 0 failed`。这是断点续传和 SHA1 跳过逻辑最直接的验收。
 
+装完之后校验一遍，应该干净、退出码 0。下面这一轮单独用 1.21.4、不带 assets：
+
+```powershell
+$vroot = 'D:\tmp\verify-e2e'
+& $mcdl install 1.21.4 --root $vroot --no-assets
+& $mcdl verify 1.21.4 --root $vroot    # 校验 69 个文件：全部一致
+$LASTEXITCODE                          # 0
+```
+
+再故意弄坏一点东西——改掉 `versions\1.21.4\1.21.4.jar` 的一个字节、删掉一个 `libraries` 下的 jar——确认失败路径与修复路径：
+
+```powershell
+& $mcdl verify 1.21.4 --root $vroot
+$LASTEXITCODE                          # 2
+
+& $mcdl install 1.21.4 --root $vroot --no-assets    # done: 2 downloaded, 67 already present, 0 failed
+& $mcdl verify 1.21.4 --root $vroot                 # 校验 69 个文件：全部一致
+$LASTEXITCODE                                       # 0
+```
+
+改字节而不改大小的情形也要看一次：`verify` 里大小相同仍会算哈希，改坏的文件必须报「不符」，只改大小才是敷衍了事。语义见 [verification.md](verification.md)。
+
 装一个 1.7 以前的版本，验证虚拟资源目录。例如：
 
 ```powershell
@@ -89,6 +112,8 @@ GUI 手工检查：
 4. 拖一个 `.mrpack` 进窗口，面板显示格式、MC 版本、加载器。
 5. 拖一个 Quilt 包，提示不支持而不是开始下载。
 6. 选一个 `.zip` 的 CurseForge 包，能识别 `manifest.json`。
+7. 安装结束后应自动跑一次校验：干净时日志写「校验通过」，文件状态栏写「全部文件与官方哈希一致」。
+8. 删掉一个已安装文件，点「校验文件」：应弹「文件校验未通过」的警告框、日志列出缺失项，且文件不会被删除或改写。按钮在解析出计划之前是灰的。
 
 ## 网络与失败路径
 

@@ -68,6 +68,8 @@ namespace McDl.Cli
                         return await InstallCommand.RunAsync(parsed, cts.Token).ConfigureAwait(false);
                     case "modpack":
                         return await ModpackCommand.RunAsync(parsed, cts.Token).ConfigureAwait(false);
+                    case "verify":
+                        return await VerifyCommand.RunAsync(parsed, cts.Token).ConfigureAwait(false);
                     default:
                         Console.Error.WriteLine("unknown command: " + command);
                         PrintHelp();
@@ -90,10 +92,13 @@ namespace McDl.Cli
             Console.WriteLine("  mcdl plan <version|pack.zip> [--root DIR] [--no-assets]");
             Console.WriteLine("  mcdl install <version> [--root DIR] [--no-assets] [--threads N]");
             Console.WriteLine("  mcdl modpack <file> [--root DIR] [--no-assets] [--threads N]");
+            Console.WriteLine("  mcdl verify <version|pack.zip> --root DIR [--no-assets] [--threads N]");
             Console.WriteLine();
             Console.WriteLine("version: an exact id such as 1.21.4, or \"latest\" / \"latest-snapshot\"");
             Console.WriteLine("modpack: Modrinth/.mrpack, CurseForge/HMCL manifest.json, MCBBS/packmeta, HMCL modpack.json");
-            Console.WriteLine("root   : target .minecraft directory (defaults to ./.minecraft)");
+            Console.WriteLine("root   : target .minecraft directory (defaults to ./.minecraft; required by verify)");
+            Console.WriteLine("verify : re-check every installed file against its size and SHA1; exit code 2 when a file");
+            Console.WriteLine("         is missing or changed. Nothing is deleted - the report is for the user to act on.");
         }
     }
 
@@ -309,6 +314,107 @@ namespace McDl.Cli
             request.ModpackPath = path;
 
             return await InstallCommand.InstallAsync(cli, request, ct).ConfigureAwait(false);
+        }
+    }
+
+    internal static class VerifyCommand
+    {
+        /// <summary>
+        /// 只解析计划、不下载，然后复核磁盘。--root 是必填的：默认的 ./.minecraft 很可能是空目录，
+        /// 那样校验出来的“全部缺失”没有意义，还会让用户以为装坏了。
+        /// </summary>
+        public static async Task<int> RunAsync(CommandLine cli, CancellationToken ct)
+        {
+            var target = cli.First;
+            if (string.IsNullOrWhiteSpace(target) || !cli.Has("root"))
+            {
+                Console.Error.WriteLine("usage: mcdl verify <version|pack.zip> --root DIR [--no-assets] [--threads N]");
+                return 1;
+            }
+
+            var threads = cli.IntOption("threads", 8);
+
+            using (var installer = new Installer(MirrorRouter.CreateDefault(), threads))
+            {
+                installer.Log = line => Console.WriteLine("· " + line);
+
+                InstallRequest request;
+                if (File.Exists(target))
+                {
+                    request = cli.ToRequest(InstallKind.Modpack);
+                    request.ModpackPath = Path.GetFullPath(target);
+                }
+                else
+                {
+                    request = cli.ToRequest(InstallKind.Vanilla);
+                }
+
+                Console.Write("resolving " + target + " ... ");
+                var plan = await installer.ResolveAsync(request, ct).ConfigureAwait(false);
+                Console.WriteLine(plan.Label + " (" + plan.VersionId + "), " + plan.Files.Count + " files");
+                Console.WriteLine("root: " + plan.Root);
+                Console.Write("verifying ...");
+
+                var progress = new VerifyProgress();
+                var report = await InstallVerifier.VerifyAsync(plan.Files, progress, ct).ConfigureAwait(false);
+                progress.Complete();
+
+                Console.WriteLine(report.Describe());
+                foreach (var problem in report.Problems)
+                    Console.WriteLine("  " + DescribeProblem(problem));
+
+                // 2 专门留给“文件有问题”，脚本能把它和网络/解析错误（1）分开处理。
+                return report.Clean ? 0 : 2;
+            }
+        }
+
+        private static string DescribeProblem(FileCheckResult problem)
+        {
+            var text = problem.Status == FileCheckStatus.Missing
+                ? "缺失 " + problem.Label + "：" + problem.Path
+                : "不符 " + problem.Label + "：" + problem.Path;
+
+            if (problem.Status == FileCheckStatus.Mismatch && problem.ExpectedSize > 0)
+                text += "（大小 " + problem.ActualSize + " / " + problem.ExpectedSize + " 字节）";
+
+            return text;
+        }
+    }
+
+    /// <summary>校验进度：只报已检查的文件数，不掺哈希计算细节。</summary>
+    internal sealed class VerifyProgress : IProgress<int>
+    {
+        private const int Step = 500;
+
+        private int _reported;
+
+        public void Report(int value)
+        {
+            // 哈希比控制台重绘快得多；每 500 个刷一次，既省时间又不至于看着像卡死。
+            var last = Volatile.Read(ref _reported);
+            if (value - last < Step) return;
+            if (Interlocked.CompareExchange(ref _reported, value, last) != last) return;
+
+            try
+            {
+                Console.Write("\r  checked " + value + " files");
+            }
+            catch (IOException)
+            {
+                // 输出被重定向时进度是可有可无的。
+            }
+        }
+
+        public void Complete()
+        {
+            // 文件数少时 Report 一次都不会触发；这里补的换行让后面的摘要另起一行。
+            try
+            {
+                Console.WriteLine();
+            }
+            catch (IOException)
+            {
+            }
         }
     }
 

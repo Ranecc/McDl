@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -54,8 +53,12 @@ namespace McDl.Core
 
         /// <summary>解析并下载，进度通过 <paramref name="progress"/> 报告。</summary>
         /// <param name="onResolved">解析完成、下载第一个字节前回调，前端用来提前显示文件数和体积。</param>
+        /// <param name="verify">
+        /// 落盘后再全量复核一遍，默认开。校验只写日志、不进 <see cref="InstallSummary.Error"/>，
+        /// 因为文件被改过应由用户判断怎么处理，不该让安装流程自动删文件或重来。
+        /// </param>
         public async Task<InstallSummary> InstallAsync(InstallRequest request, IProgress<TransferStats> progress,
-            CancellationToken ct, Action<InstallPlan> onResolved = null)
+            CancellationToken ct, Action<InstallPlan> onResolved = null, bool verify = true)
         {
             InstallPlan plan;
             try
@@ -73,29 +76,60 @@ namespace McDl.Core
 
             onResolved?.Invoke(plan);
 
-            var summary = new InstallSummary { Plan = plan };
+            TransferStats stats = null;
+            string error = null;
             try
             {
-                summary.Stats = await plan.MaterializeAsync(_engine, progress, ct).ConfigureAwait(false);
+                stats = await plan.MaterializeAsync(_engine, progress, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
                 throw;
             }
-            catch (IOException ex)
-            {
-                // 单个文件失败；明细在 engine 的 Failures 里。
-                summary.Error = ex.Message;
-            }
             catch (Exception ex)
             {
-                summary.Error = ex.Message;
+                // 单个文件失败；明细在 engine 的 Failures 里。此时磁盘是半成品，校验没有意义，跳过。
+                error = ex.Message;
             }
 
-            if (_engine.Failures.Count > 0) summary.Failures = new List<string>(_engine.Failures);
-            else summary.Failures = new List<string>();
+            VerificationReport verification = null;
+            if (error == null && verify)
+            {
+                verification = await InstallVerifier.VerifyAsync(plan.Files, null, ct).ConfigureAwait(false);
+                ReportVerification(verification);
+            }
 
-            return summary;
+            return new InstallSummary
+            {
+                Plan = plan,
+                Stats = stats,
+                Error = error,
+                Verification = verification,
+                Failures = _engine.Failures.Count > 0 ? new List<string>(_engine.Failures) : new List<string>()
+            };
+        }
+
+        /// <summary>把校验结果写进日志；问题最多列 20 条，避免几千个 assets 刷满界面。</summary>
+        private void ReportVerification(VerificationReport report)
+        {
+            var log = Log;
+            if (log == null) return;
+
+            log("校验完成：" + report.Describe());
+
+            const int maxListed = 20;
+            var listed = 0;
+            foreach (var problem in report.Problems)
+            {
+                if (listed == maxListed)
+                {
+                    log("…还有 " + (report.Problems.Count - maxListed) + " 个未列出");
+                    break;
+                }
+
+                log("校验失败：" + problem.Label + "（" + problem.Path + "）");
+                listed++;
+            }
         }
 
         public void Dispose()

@@ -60,6 +60,7 @@ namespace McDl.App
         private Button _start;
         private Button _cancel;
         private Button _open;
+        private Button _verify;
         private TextBox _log;
 
         public MainForm()
@@ -387,6 +388,11 @@ namespace McDl.App
             _open.Size = new Size(110, 40);
             _open.Click += OnOpenFolder;
 
+            _verify = Buttons.Secondary("校验文件");
+            _verify.Size = new Size(96, 40);
+            _verify.Enabled = false;
+            _verify.Click += OnVerifyFiles;
+
             _rightCard.Controls.Add(_vTitle);
             _rightCard.Controls.Add(_vMeta);
             _rightCard.Controls.Add(_vStats);
@@ -406,6 +412,7 @@ namespace McDl.App
             _rightCard.Controls.Add(_start);
             _rightCard.Controls.Add(_cancel);
             _rightCard.Controls.Add(_open);
+            _rightCard.Controls.Add(_verify);
 
             _rightCard.Resize += (sender, e) => LayoutRight();
         }
@@ -438,6 +445,7 @@ namespace McDl.App
             _start.Location = new Point(18, buttonY);
             _cancel.Location = new Point(18 + 158, buttonY);
             _open.Location = new Point(18 + inner - 110, buttonY);
+            _verify.Location = new Point(18 + inner - 110 - 8 - 96, buttonY);
         }
 
         private void BuildLogCard()
@@ -858,6 +866,10 @@ namespace McDl.App
                 SetFooter(stats.FailedFiles > 0 ? "安装未完成" : "安装完成 · " + versionLabel);
 
                 AppendLog("完成，可点击「打开目录」查看结果。");
+
+                // 下载阶段已经逐个校验过 SHA1，这里复核的是“落盘之后”有没有被改写：
+                // 杀软隔离、磁盘问题、别人手动替换。失败只提示，绝不删除文件。
+                ShowVerification(summary.Verification, "安装完成");
             }
             catch (OperationCanceledException)
             {
@@ -878,6 +890,80 @@ namespace McDl.App
             {
                 if (_cts != null) { _cts.Dispose(); _cts = null; }
                 SetBusyUi(false, null);
+            }
+        }
+
+        /// <summary>
+        /// 把校验结果落到日志与弹窗：干净就一行通过，有问题就逐条列并提示，绝不删除文件。
+        /// 安装结束与手动点「校验文件」共用这一段，避免两条路径给出不一致的说法。
+        /// </summary>
+        private void ShowVerification(VerificationReport verification, string cleanFooter)
+        {
+            if (verification == null) return;
+
+            if (verification.Clean)
+            {
+                AppendLog("校验通过：" + verification.Describe());
+                SetFooter(cleanFooter);
+                _file.Text = "全部文件与官方哈希一致";
+                return;
+            }
+
+            AppendLog("校验失败：" + verification.Describe() + "（文件未被删除，建议重新下载或检查磁盘/杀毒软件）。");
+            for (var i = 0; i < verification.Problems.Count && i < 5; i++)
+            {
+                var problem = verification.Problems[i];
+                AppendLog(string.Format("  {0}：{1}（{2}）",
+                    problem.Status == FileCheckStatus.Missing ? "缺失" : "哈希不符",
+                    problem.Label ?? problem.Path, problem.Path));
+            }
+            if (verification.Problems.Count > 5)
+                AppendLog("  …还有 " + (verification.Problems.Count - 5) + " 个问题文件，详见本次日志。");
+
+            SetFooter(cleanFooter + "，但有文件校验失败");
+            _file.Text = "有文件校验失败，文件保留未删除";
+            MessageBox.Show(this,
+                verification.Describe() + Environment.NewLine + Environment.NewLine +
+                "这些文件没有被删除或改写。可以重新点击「开始安装」补齐或重新下载，" +
+                "若反复出现，请检查磁盘或杀毒软件是否在改动下载的文件。",
+                "文件校验未通过", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        private async void OnVerifyFiles(object sender, EventArgs e)
+        {
+            var plan = _plan;
+            if (plan == null)
+            {
+                AppendLog("还没有可校验的文件清单：请先点「开始安装」解析一次。");
+                return;
+            }
+
+            _verify.Enabled = false;
+            _file.Text = "正在校验已下载的文件…";
+            _pct.Text = "校验中";
+            try
+            {
+                var count = plan.Files.Count;
+                var progress = new Progress<int>(done =>
+                {
+                    if (done >= count) return;
+                    _file.Text = "已校验 " + done + " / " + count;
+                });
+
+                var report = await Task.Run(() => InstallVerifier.VerifyAsync(plan.Files, progress, CancellationToken.None))
+                    .ConfigureAwait(true);
+
+                _file.Text = report.Clean ? "全部文件与官方哈希一致" : "有文件校验失败，文件保留未删除";
+                if (report.Clean) _pct.Text = "校验通过"; else _pct.Text = "校验未通过";
+                ShowVerification(report, "校验完成 · " + (plan.Label ?? plan.VersionId));
+            }
+            catch (Exception ex)
+            {
+                AppendLog("校验失败：" + ex.Message);
+            }
+            finally
+            {
+                _verify.Enabled = !_busy && _plan != null;
             }
         }
 
@@ -918,6 +1004,7 @@ namespace McDl.App
             _withAssets.Enabled = !busy;
             _browse.Enabled = !busy;
             _openPack.Enabled = !busy;
+            _verify.Enabled = !busy && _plan != null;
             _root.Enabled = !busy;
             _cancel.Enabled = busy;
             _start.Text = busy ? "安装中…" : "开始安装";

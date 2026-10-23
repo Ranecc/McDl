@@ -106,6 +106,8 @@ Windows 上用 `cosign.exe` 跑同一条命令，PowerShell 里把行尾的 `\` 
 
 推荐顺序：先验签（确认清单可信），再对哈希（确认文件没被换），想知道源码层面是否干净就自己重建一次，见 [reproducible-builds.md](reproducible-builds.md)。
 
+这几条证的都是**发布包**：exe 与两个 zip。装完之后磁盘上的 `.minecraft` 是否还和官方清单一致，是另一回事，用 `mcdl verify` 复核，见 [verification.md](verification.md)。两者不可互相替代——发布包验签管不到运行之后的文件，装完的复核也证明不了 exe 本身干净。
+
 ## 需要保留意见的地方
 
 - **exe 不在 `SHA256SUMS` 里，它的哈希也没有签名。** `SHA256SUMS` 只覆盖两个 zip；`McDl-0.4.0.exe` 与 `McDl-<版本>.exe.sha256` 都是方便文件，`SHA256SUMS.sig` 不覆盖它们。要验 exe，走 zip 那条链：验 `SHA256SUMS` → 对 zip 哈希 → 解压。单拿一个 exe 时，能做的只有比对 `BUILD-INFO.txt` 里的提交号与「产品版本」。

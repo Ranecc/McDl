@@ -2,6 +2,21 @@
 
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.5.0] - 2026-10-23
+
+### 添加
+
+- 添加：`mcdl verify` 子命令——只解析计划、不下载，按大小 + SHA1 复核磁盘上已安装的文件，列出缺失与不符的项；只报告不删除，退出码 0 / 1 / 2
+- 添加：图形界面「校验文件」按钮，解析出计划后可用，可随时手动复查
+- 添加：每次安装结束后自动复核一遍落盘文件（`InstallSummary.Verification`），防杀毒软件隔离、磁盘损坏与事后被改；失败只提示、文件保留
+- 文档：`docs/verification.md` 说明校验范围、触发时机、失败处理与「为什么校验不能替代签名」；`docs/cli.md` 补 `verify` 用法与退出码表；`docs/testing.md` 补 `InstallVerifierTests` 与手工验收步骤；`docs/loaders.md` 与 `docs/verifying-releases.md` 补交叉引用与覆盖边界
+- 文档：README 新增「免责声明」，界定工具属性（正版辅助）、不做授权校验因而要求用户自律、责任归属、透明可验证与无担保；FAQ「为什么不登录、不做正版校验」扩写为四段（不需要身份 / Azure 应用与客户端条款的持续义务 / 凭证代码带来的安全面 / 正版校验无实际意义）
+
+### 变更
+
+- 变更：README 徽章组（Powered by 🐳大肥鱼 / License / .NET Framework 4.8 / platform / CI / release / downloads）
+- 变更：`SECURITY.md` 增加边界声明：不接收、不保存账号凭证，也不请求微软 / Mojang 授权
+
 ## [0.4.4] - 2026-10-23
 
 ### 修复

@@ -40,6 +40,12 @@ Fabric 不需要本地 Java，也不跑任何程序。
 
 installer 发起的所有下载都是它自己直连 `launchermeta.mojang.com`、`libraries.minecraft.net` 等官方域名，McDl 既不知道也改不了。所以“installer 退出码 0 但什么都没装”几乎总是这些域名不可达（代理、hosts、加速工具），排查顺序：先在终端 `curl` 一下这些域名，再考虑 Java 与目录权限。`VersionId` 校验就是为了不让这种情况被当成成功吞掉。
 
+装完的全量复核（`mcdl verify` / 图形界面「校验文件」）只覆盖安装计划里的文件：客户端、libraries、assets，以及 `.mcdl\installers\` 下的 installer 本身。**installer 自己写进 `versions\` 和 `libraries\` 的那些文件不在计划里，校验看不到**，那部分只能以退出码与 `VersionId` 检查为准。见 [verification.md](verification.md)。
+
+### 为什么没有 Forge 的「完整包」可下
+
+Forge 官方只发布 installer：1.13 以后没有可以离线放进 `libraries\` 的 universal 包，库要靠 installer 里的 processor 链在安装时按 Maven 坐标取。McDl 因此只做「下载官方 installer、校验它的 `.sha1`、在本机执行」；取不到上游 `.sha1` 时日志明确写这次不校验它，只校验安装结果。想完全离线得自己预先备好 Maven 仓库，本项目不提供「离线全量导包」。
+
 ### 版本拼接
 
 包的清单可能写 `47.2.0`，也可能写完整的 `1.20.1-47.2.0`。`ComposeInstallerVersion` 的规则：

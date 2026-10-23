@@ -1,8 +1,16 @@
 # McDl
 
-![Fish](https://img.shields.io/badge/Powered%20by-大肥鱼-blue)
+[![Powered by 🐳大肥鱼](https://img.shields.io/badge/Powered%20by-%F0%9F%90%B3%E5%A4%A7%E8%82%A5%E9%B1%BC-blue)](https://github.com/Ranecc/McDl)
+[![License](https://img.shields.io/github/license/Ranecc/McDl)](LICENSE)
+![.NET Framework](https://img.shields.io/badge/.NET%20Framework-4.8-512BD4)
+![platform](https://img.shields.io/badge/platform-Windows-0078D4)
+[![CI](https://github.com/Ranecc/McDl/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Ranecc/McDl/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Ranecc/McDl)](https://github.com/Ranecc/McDl/releases)
+[![Downloads](https://img.shields.io/github/downloads/Ranecc/McDl/total)](https://github.com/Ranecc/McDl/releases)
 
-McDl 是面向 Windows 的 Minecraft 游戏文件下载器。它把某个版本或某个整合包运行所需的文件——客户端 jar、libraries、natives、资源索引与 assets——写入指定的 `.minecraft` 目录，产出可被 HMCL、PCL2、官方启动器等直接使用的游戏本体。账号登录、版本隔离与游戏启动由启动器负责，不属于 McDl 的职责。
+McDl 是面向 Windows 的 Minecraft 游戏文件下载器。
+
+McDl 把某个版本或某个整合包运行所需的文件——客户端 jar、libraries、natives、资源索引与 assets——写入指定的 `.minecraft` 目录，产出可被 HMCL、PCL2、官方启动器等直接使用的游戏本体。账号登录、版本隔离与游戏启动由启动器负责，不属于 McDl 的职责。
 
 本项目的直接背景：2026 年 10 月 20 日，PCL2 自 2.99.0.0 起移除内置下载功能，同日国内数个第三方启动器亦相继下线下载服务。此后补一份干净的游戏文件，需要使用者自行获取版本清单、库文件、资源索引与各类镜像地址。McDl 将这一流程收敛为单个可执行文件。
 
@@ -23,6 +31,8 @@ Windows 10/11 直接双击 `McDl.exe` 运行，无需预装 .NET。exe 约 365 K
 界面左侧为可搜索的版本列表。选定版本后确认安装目录（首次打开默认为 `%APPDATA%\.minecraft`），决定是否一并下载 assets，点击「开始安装」。整合包可通过拖入窗口或点击「整合包…」安装；窗口将显示识别出的包格式、Minecraft 版本与加载器，详细步骤见日志面板。
 
 assets 复选框记住上次选择，首次运行时默认不勾选：完整资源约占总下载量的九成，不勾选时仅下载客户端、库与 natives。不勾选不影响游戏本体安装，但游戏内将缺少声音与语言文件。
+
+安装结束后会自动复核一遍落盘的文件：逐个比对大小与 SHA1，列出缺失或内容不符的项。这防的是下载完成之后被改——杀毒软件隔离、磁盘问题、事后被替换。失败只提示，**不删除、不改写任何文件**；重跑安装即可补齐，干净的文件会跳过。解析出安装计划之后，「校验文件」按钮可用，可随时手动复查。详见 [docs/verification.md](docs/verification.md)。
 
 ## 命令行
 
@@ -76,7 +86,20 @@ mcdl install latest-snapshot --no-assets
 mcdl modpack .\某个整合包.mrpack --root D:\Games\.minecraft
 ```
 
-`install` 先打印计划，随后以单行刷新的进度条显示过程，结束时汇总下载数、已存在数与失败数。过程中可按 Ctrl+C 取消；重新执行时，SHA1 校验通过的文件直接跳过，未完成的文件自 `.part` 续传。完整命令与参数见 [docs/cli.md](docs/cli.md)。
+`install` 先打印计划，随后以单行刷新的进度条显示过程，结束时汇总下载数、已存在数与失败数。过程中可按 Ctrl+C 取消；重新执行时，SHA1 校验通过的文件直接跳过，未完成的文件自 `.part` 续传。
+
+装完之后可以单独复核磁盘上的文件，不下载任何内容：
+
+```powershell
+mcdl verify 1.20.1 --root D:\Games\.minecraft
+```
+
+```
+verifying ...
+校验 3649 个文件：全部一致
+```
+
+有文件缺失或内容不符时逐条列出并返回退出码 2（0 表示干净，1 表示用法或解析错误），只报告不删除。`--root` 在 `verify` 下必填。完整命令与参数见 [docs/cli.md](docs/cli.md)，校验的语义与边界见 [docs/verification.md](docs/verification.md)。
 
 ## 目录结构
 
@@ -141,11 +164,25 @@ Forge 的 installer 需要 Java 17 或更高版本，但本机未找到可用的
 
 **单个文件校验失败。** 先重试；仍失败则删除该文件后重跑。命令行会报告首个失败文件及原因。SHA1 不符通常意味着链路上存在返回错误页面的代理或镜像。
 
+**装完之后启动器提示文件损坏，或是文件被改了。** 用 `mcdl verify`（图形界面为「校验文件」按钮）复核一遍磁盘：它比对大小与 SHA1，只报告不符与缺失的项，不删除文件。随后重跑 `install` 补齐——已正确的文件会跳过。若同一处反复不符，先查杀毒软件的隔离记录和磁盘状态，不要反复重装。详见 [docs/verification.md](docs/verification.md)。
+
 **Forge / NeoForge installer 中途退出或超时。** installer 运行上限 10 分钟，超时强制结束。先查日志中 installer 的最后 20 行，常见原因为 Java 版本不符、目录无写权限、下载处理器网络受阻。修正后重跑，已下载文件不会重复下载。
 
 **installer 自行退出，日志仅数行，`versions` 目录无新增。** Forge 官方 installer 内部直连 `launchermeta.mojang.com`、`libraries.minecraft.net` 等域名，不经过 McDl 的镜像体系。若这些域名在本机网络中被代理、hosts 或加速工具干扰，installer 会静默失败且退出码为 0。放通上述域名或启用系统代理后重试。McDl 会核验 `versions` 下是否实际生成目录，未生成即按失败上报。
 
 **装完能否直接启动。** McDl 不承担启动职能。以 HMCL、PCL2 或官方启动器打开该 `.minecraft` 即可，Forge / NeoForge / Fabric 的版本配置已写入。整合包内模组需由启动器另行获取。
+
+**为什么不登录、不做正版校验。** 理由不是懒得做，而是四件事各自都不划算。
+
+下载本身不需要身份。客户端 jar、库、资源索引与 assets 都是 Mojang 公开托管的，任何人不带账号也能取到。登录对下载没有帮助，只会让 McDl 拿到它不该持有的东西——密码以外的 token 同样属于凭证。
+
+其次，接登录不是加一个按钮。要做微软账号授权，得在 Azure 注册应用、处理 OAuth 回调与 refresh token 轮换，还要持续跟上 Minecraft 第三方客户端的使用条款。这些是长期义务：应用要维护、条款会变、出错得有人响应。本项目没有服务端，也没有专职维护者，接不起这份义务。
+
+第三，处理 token 会把整个安全面抬高一档。代码路径一旦要接收、刷新、保存凭证，就多出若干端点、存储与失效处理；要让别人信得过这些代码，得有安全审阅乃至渗透测试的预算。本项目没有，SECURITY.md 里也写明只尽力而为、没有 SLA。在这种条件下承诺「替你保管微软账号」是不负责任的说法。所以这里的取舍很明确：不碰凭证，也不读取其它启动器保存的账号文件。
+
+最后，正版校验不带来任何能力。判定「是否正版」确实必须拿 token 去问 Mojang，但 McDl 下载的是没有 DRM 的公开文件，装完之后能不能进服务器、以什么身份进，由启动器与服务端（online-mode）决定。在本工具里加一道正版校验，只是平白多一条需要保管凭证的路径，不会让下载更正确；`verify` 比对的是公开文件的哈希，与「是否是正版」无关。
+
+这是当前的选择：不做账号。将来若有人接手 OAuth 与安全响应，可以作为独立模块加入，前提是不影响「不登录也能下载」这条主线。使用前提与责任边界见[免责声明](#免责声明)。
 
 **exe 为何仅三百余 KB。** 目标框架为 net48，运行时使用系统自带组件；Core 与 Newtonsoft.Json 经 Costura 嵌入 exe。若改为自带运行时的 .NET 8 单文件发布，体积在数十 MB 量级。
 
@@ -184,6 +221,18 @@ pwsh -NoProfile -File tools\build-release.ps1 -Version 0.4.0
 同一 SDK、同一提交，两个不同目录 clean build 得到的 `McDl.exe` 逐字节一致（已实测，打包脚本产出的 exe 与两个 zip 也一致）。SDK 补丁版必须一致，否则字节会变；CI 与本机在同一 SDK 下的比对还没有结论。现状与验证方法见 [docs/reproducible-builds.md](docs/reproducible-builds.md)。
 
 修改代码前请先阅读 [docs/contributing.md](docs/contributing.md)；内部分层见 [docs/architecture.md](docs/architecture.md)。
+
+## 免责声明
+
+**工具属性。** McDl 是正版辅助工具，用途是替已经拥有 Minecraft: Java Edition 正版授权的玩家，把 Mojang 官方发布的游戏文件从官方 CDN（或其公开镜像）取回本地并做完整性校验。它不提供游戏，不破解，不分发游戏本体，也不绕过任何授权机制。
+
+**它不校验授权。** 本工具不登录、不校验正版，缘由见上文「为什么不登录、不做正版校验」；因此是否具备合法授权只能由使用者自行判断。请在持有正版授权的前提下使用，未持有正版授权者不应使用本工具获取游戏文件。
+
+**责任归属。** 使用者应自行遵守 Minecraft 使用条款（EULA）、微软服务协议以及所在地法律。因违规使用、二次分发或商业利用本工具引发的争议与损失，由使用者自行承担，作者与本项目不承担相关责任。
+
+**透明与可验证。** 只访问 [docs/network-and-files.md](docs/network-and-files.md) 列出的公开端点；Forge / NeoForge 的官方 installer 由本地 Java 运行，它自己还会访问 Mojang 的官方域名（launchermeta、libraries 等），这部分行为不在本工具控制范围内。下载的每个文件以官方元数据里的 SHA1 为准逐个校验，官方 CDN 优先、镜像兜底，不一致就报错而不是静默接受——落盘之后还有一次全量复核，见 [docs/verification.md](docs/verification.md)。发布产物附 `SHA256SUMS` 与 cosign keyless 签名（证明字节没被替换），并附 `sbom.json` 与可复现构建的比对方法（见 [docs/reproducible-builds.md](docs/reproducible-builds.md)）——你可以按同一套命令自行重建并比对哈希，确认产物就是这份源码构建出来的。
+
+**无担保。** 本项目按「现状」提供，不承诺可用性、适用性，也不承诺没有缺陷。
 
 ## License
 
