@@ -5,10 +5,13 @@
 ## 分层
 
 ```
-src\McDl.App (WinForms)  src\McDl.Cli (mcdl.exe)
-            \              /
-             \            /
-          src\McDl.Core
+src\McDl.App (WinForms)                    src\McDl.Cli (mcdl.exe)
+  Shell\    窗口与安装面板                        |
+  Pages\    三个页面                             |
+  Design\   主题、画图原语、自绘控件               |
+          \                                  /
+           \                                /
+                  src\McDl.Core
 ```
 
 两个前端都只依赖 `McDl.Core`，不共享代码。Core 内部按职责分目录：
@@ -26,6 +29,22 @@ src\McDl.App (WinForms)  src\McDl.Cli (mcdl.exe)
 依赖方向基本是向下的：`Api` 知道 `Sources` 和 `Engine`，`Sources` 知道 `Minecraft`、`Packs`、`Loaders`，`Engine` 和 `Support` 不知道别的层。`Minecraft` 会用到 `Engine` 的 `FileTask` 与镜像分类，但不知道有几种安装来源。
 
 一个刻意的约束：Core 不引用 `System.Windows.Forms`，前端也不直接调 `DownloadEngine`。所有安装都走 `Installer`，这样 CLI 和 GUI 的行为不会分叉。
+
+## App 层
+
+`src\McDl.App` 只有一个窗口，代码分三块：
+
+| 目录 | 主要类型 | 负责 |
+| --- | --- | --- |
+| `Shell` | `ShellWindow`、`InstallPanel` | 无边框窗口、标题栏、左侧导航、拖放；右栏安装面板驱动一次安装与校验 |
+| `Pages` | `VanillaPage`、`PacksPage`、`SettingsPage` | 每个导航项一页，只管自己的输入、列表和布局，产出 `InstallRequest` |
+| `Design` | `Tokens`、`ThemeManager`、`Surface`、`Ui*` 控件 | 配色与尺寸 token、主题切换、DWM 背景、按钮/卡片/列表等自绘控件 |
+
+启动顺序在 `Program.Main`：`ApplyUiScale()`（按 DPI 设 `Metrics.Scale`）→ `Settings.Load()` → `ThemeManager.Initialize(settings.ThemeMode)` → `Application.Run(new ShellWindow(settings, FirstPackArgument(args)))`。`Settings` 存在 `%APPDATA%\McDl\settings.json`，只有安装目录、线程数、assets 和主题模式四项；读失败不挡启动。
+
+页面和安装流程之间只通过 `InstallPanel.RequestFactory` 连接：页面把自己的选择包成 `InstallRequest`，面板创建 `Installer` 并管生命周期。安装和校验在后台线程上跑，回到 UI 线程统一走 `InstallPanel.Post`（内部 `BeginInvoke`）；关窗口时 `ShellWindow.OnFormClosing` 取消还在跑的任务。
+
+界面全部自绘，配色和间距只改 `Design\Tokens.cs`。主题、DPI、DWM 背景和几个容易踩的点见 [ui.md](ui.md)。
 
 ## 一次安装的时序
 
@@ -51,7 +70,7 @@ src\McDl.App (WinForms)  src\McDl.Cli (mcdl.exe)
 - **计划是数据**。`InstallPlan` 把“要下什么、要解什么、下完还要做什么”摊开，CLI 的 `plan` 命令能直接打印，测试也能在断网情况下断言文件数。
 - **来源可替换**。原版和整合包的差异全在 `IInstallSource` 后面；`Installer` 只做路由。
 - **加载器是加法**。加载器不重写原版解析，只在已有计划上追加库文件、`PostDownload` 和启动配置。
-- **前端很薄**。GUI 和 CLI 都只创建 `Installer`、传 `InstallRequest`、收 `IProgress<TransferStats>`。
+- **前端很薄**。GUI 和 CLI 都只创建 `Installer`、传 `InstallRequest`、收 `IProgress<TransferStats>`。GUI 的「厚」全在 `Design` 的自绘控件里，不碰 Core 流程。
 
 ## 扩展点
 

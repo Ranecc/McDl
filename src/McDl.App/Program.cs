@@ -1,103 +1,105 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
-using McDl.Core;
+using McDl.App.Design;
+using McDl.App.Shell;
 
 namespace McDl.App
 {
     internal static class Program
     {
+        /// <summary>界面里展示的版本号，取自程序集元数据（构建时由 csproj 写入）。</summary>
+        public static string Version
+        {
+            get
+            {
+                var version = typeof(Program).Assembly.GetName().Version;
+                if (version == null) return "v0.0.0";
+                if (version.Revision > 0) return "v" + version.ToString(4);
+                return "v" + version.ToString(3);
+            }
+        }
+
         [STAThread]
         private static void Main(string[] args)
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            Application.ThreadException += (sender, e) =>
-                ShowFatal(e.Exception);
+            Application.ThreadException += (sender, e) => ShowFatal(e.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (sender, e) => ShowFatal(e.ExceptionObject as Exception);
 
-            AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
-                ShowFatal(e.ExceptionObject as Exception);
+            ApplyUiScale();
 
-            Application.Run(new MainForm(args));
+            var settings = Settings.Load();
+            ThemeManager.Initialize(settings.ThemeMode);
+
+            Application.Run(new ShellWindow(settings, FirstPackArgument(args)));
         }
 
-        private static void ShowFatal(Exception ex)
+        /// <summary>
+        /// 按系统 DPI 设定界面缩放系数。manifest 里声明了 dpiAware，窗口不会再被位图拉伸，
+        /// 所以字号与间距由 Metrics 统一乘上 DPI 比例。
+        /// MCDL_UI_SCALE 可强制指定比例（调试高 DPI 用，例如 1.25）。
+        /// </summary>
+        private static void ApplyUiScale()
         {
-            if (ex == null) return;
-            MessageBox.Show(ex.ToString(), "McDl 发生错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-    }
-
-    /// <summary>Palette and helpers shared by the window; one place to restyle the app.</summary>
-    internal static class Theme
-    {
-        public static readonly Color Background = Color.FromArgb(246, 247, 249);
-        public static readonly Color Surface = Color.White;
-        public static readonly Color SurfaceAlt = Color.FromArgb(239, 242, 245);
-        public static readonly Color Border = Color.FromArgb(221, 226, 232);
-        public static readonly Color Text = Color.FromArgb(28, 33, 40);
-        public static readonly Color TextMuted = Color.FromArgb(108, 118, 130);
-        public static readonly Color Accent = Color.FromArgb(37, 156, 90);
-        public static readonly Color AccentHover = Color.FromArgb(48, 176, 103);
-        public static readonly Color AccentPressed = Color.FromArgb(28, 130, 74);
-        public static readonly Color AccentSoft = Color.FromArgb(232, 245, 237);
-
-        public static Font Ui(float size, FontStyle style = FontStyle.Regular)
-        {
-            return new Font("Microsoft YaHei UI", size, style, GraphicsUnit.Point);
-        }
-
-        public static Font Mono(float size)
-        {
-            return new Font("Consolas", size, FontStyle.Regular, GraphicsUnit.Point);
-        }
-
-        public static string Bytes(long value)
-        {
-            if (value < 1024) return value + " B";
-            if (value < 1024L * 1024) return (value / 1024.0).ToString("0.0") + " KB";
-            if (value < 1024L * 1024 * 1024) return (value / 1024.0 / 1024).ToString("0.0") + " MB";
-            return (value / 1024.0 / 1024 / 1024).ToString("0.00") + " GB";
-        }
-
-        public static string VersionType(string type)
-        {
-            switch ((type ?? string.Empty).ToLowerInvariant())
+            var forced = Environment.GetEnvironmentVariable("MCDL_UI_SCALE");
+            float parsed;
+            if (!string.IsNullOrWhiteSpace(forced) &&
+                float.TryParse(forced, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out parsed) &&
+                parsed >= 1f && parsed <= 4f)
             {
-                case "release": return "正式版";
-                case "snapshot": return "快照";
-                case "old_beta": return "远古 Beta";
-                case "old_alpha": return "远古 Alpha";
-                default: return type ?? "未知";
+                Metrics.Scale = parsed;
+                return;
+            }
+
+            try
+            {
+                using (var screen = Graphics.FromHwnd(IntPtr.Zero))
+                {
+                    Metrics.Scale = screen.DpiX / 96f;
+                }
+            }
+            catch
+            {
+                Metrics.Scale = 1f;
             }
         }
 
-        public static string Date(string iso)
+        /// <summary>命令行里第一个存在的文件参数，按整合包处理。</summary>
+        private static string FirstPackArgument(string[] args)
         {
-            DateTime parsed;
-            if (DateTime.TryParse(iso, out parsed)) return parsed.ToString("yyyy-MM-dd");
-            return iso ?? string.Empty;
-        }
+            if (args == null) return null;
 
-        public static string MirrorName(string name)
-        {
-            switch ((name ?? string.Empty).ToLowerInvariant())
+            foreach (var arg in args)
             {
-                case "official": return "官方";
-                case "bmclapi": return "BMCLAPI";
-                default: return name ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(arg)) continue;
+                if (!File.Exists(arg)) continue;
+                return arg;
             }
+
+            return null;
         }
 
-        /// <summary>Assembly version trimmed to major.minor.patch, for the footer label.</summary>
-        public static string ShortVersion()
+        private static void ShowFatal(Exception exception)
         {
-            var version = typeof(Theme).Assembly.GetName().Version;
-            if (version == null) return "0.0";
-            return version.Revision > 0
-                ? version.ToString()
-                : version.Major + "." + version.Minor + "." + System.Math.Max(0, version.Build);
+            if (exception == null) return;
+
+            try
+            {
+                MessageBox.Show(
+                    exception.Message + Environment.NewLine + Environment.NewLine + exception.GetType().FullName,
+                    "McDl 出错了",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+            catch
+            {
+                // 连弹窗都失败时只能退出，交给系统日志。
+            }
         }
     }
 }

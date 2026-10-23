@@ -53,7 +53,7 @@ chore: 升级 Newtonsoft.Json
 - 加整合包格式：实现 `Packs\IPackFormat`，登记到 `PackFormats.All`。先读 [packs.md](packs.md)。
 - 加加载器：实现 `Loaders\ILoaderInstaller`，登记到 `LoaderInstallers.Instances`。先读 [loaders.md](loaders.md)。
 - 改下载、镜像、校验：`Engine\DownloadEngine.cs`、`Engine\MirrorRouter.cs`。动这块要补测试，镜像排序和 URL 分类都有现成用例。
-- 改界面：`src\McDl.App`，不要引用 Core 的内部类型，也不要绕过 `Installer`。
+- 改界面：`src\McDl.App`，不要引用 Core 的内部类型，也不要绕过 `Installer`。配色和间距只改 `Design\Tokens.cs`；页面结构、主题与 DPI 的约定先读 [ui.md](ui.md)。
 - 分层和扩展点的完整说明在 [architecture.md](architecture.md)。
 
 ## PR 流程

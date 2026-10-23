@@ -1,15 +1,19 @@
 using System;
 using System.IO;
+using McDl.App.Design;
 using McDl.Core;
 
 namespace McDl.App
 {
     /// <summary>Small user-preferences blob stored under %APPDATA%\McDl.</summary>
-    internal sealed class Settings
+    public sealed class Settings
     {
         public string Root { get; set; }
         public int Threads { get; set; }
         public bool WithAssets { get; set; }
+
+        /// <summary>配色模式；旧配置文件没有这一项时按「跟随系统」处理。</summary>
+        public ThemeMode ThemeMode { get; set; }
 
         private static string FilePath
         {
@@ -53,3 +57,5 @@ namespace McDl.App
         }
     }
 }
+
+
