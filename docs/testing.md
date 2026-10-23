@@ -131,15 +131,14 @@ GUI 手工检查：
 
 1. `actions/checkout@v4`。
 2. `actions/setup-dotnet@v4` 读 `global.json`。SDK 版本以这个文件为准，workflow 里不写死。
-3. `tools\check-leaks.ps1`：被跟踪文件里一旦出现本机用户目录、主机名或已知工作目录名就失败。文档里的示例路径要写占位符。
-4. `dotnet restore mcdl.sln --locked-mode`。锁文件对不上就让 CI 失败，别让它悄悄解析新版本。
-5. `dotnet build mcdl.sln -c Release`。
-6. `pwsh -NoProfile -File tools\test.ps1`。
-7. 可复现性自检：把同一个提交取到另一个工作树里再裸 build 一次，比对两处 `McDl.exe` 的 SHA256，不同就失败。
-8. 从 `McDl.App.csproj` 读出版本号，交给 `pwsh -File tools\build-release.ps1 -Version <版本>`，产出与发布同一套文件。
-9. 用 `dist\McDl-<版本>.exe.sha256` 校验自己刚打出来的 exe，对不上就失败。
-10. 上传 artifact `mcdl-exe`：`dist\McDl-<版本>.exe`、`dist\McDl-<版本>.exe.sha256`、`dist\SHA256SUMS`。
+3. `dotnet restore mcdl.sln --locked-mode`。锁文件对不上就让 CI 失败，别让它悄悄解析新版本。
+4. `dotnet build mcdl.sln -c Release`。
+5. `pwsh -NoProfile -File tools\test.ps1`。
+6. 可复现性自检：把同一个提交取到另一个工作树里再裸 build 一次，比对两处 `McDl.exe` 的 SHA256，不同就失败。这条自检本身还没在 GitHub Actions 上跑过。
+7. 从 `McDl.App.csproj` 读出版本号，交给 `pwsh -File tools\build-release.ps1 -Version <版本>`，产出与发布同一套文件。
+8. 用 `dist\McDl-<版本>.exe.sha256` 校验自己刚打出来的 exe，对不上就失败。
+9. 上传 artifact `mcdl-exe`：`dist\McDl-<版本>.exe`、`dist\McDl-<版本>.exe.sha256`、`dist\SHA256SUMS`。
 
-第 8 步用的是与 Release 完全相同的命令和参数，所以打出来的 exe 与 Release 资产逐字节相同。具体哈希由构建时嵌进程序集的 commit 决定，每提交一次都会变，所以永远看产物旁边的 `McDl-<版本>.exe.sha256`，不要照抄文档里的数字。exe 大小通常在 385 KB 左右，这个数也不是校验依据。
+第 7 步用的是与 Release 完全相同的命令和参数，所以打出来的 exe 与 Release 资产逐字节相同。具体哈希由构建时嵌进程序集的 commit 决定，每提交一次都会变，所以永远看产物旁边的 `McDl-<版本>.exe.sha256`，不要照抄文档里的数字。exe 大小通常在 385 KB 左右，这个数也不是校验依据。
 
 分支保护要求的必需状态检查就是 `build` 这一个。CI 不跑真实下载，也不验 Forge installer。涉及网络和 Java 的改动需要本地按上面的步骤走一遍。

@@ -75,7 +75,7 @@ mcdl plan 1.20.1
 name         : 1.20.1
 version      : 1.20.1
 asset index  : 5
-root         : <安装目录>\.minecraft
+root         : E:\DEV\WechatBotWorkspace\mcdl\.minecraft
 files        : 3649
 size         : 699.1 MB
 
@@ -111,7 +111,7 @@ mcdl install 1.6.4 --no-assets --root .testmc\cli-doc --threads 8
 resolving 1.6.4 ... 1.6.4 (1.6.4), 19 files, 11.6 MB
 
 done: 19 downloaded, 0 already present, 0 failed
-root: <安装目录>\.testmc\cli-doc
+root: E:\DEV\WechatBotWorkspace\mcdl\.testmc\cli-doc
 ```
 
 再跑一次同样的命令：
@@ -120,7 +120,7 @@ root: <安装目录>\.testmc\cli-doc
 resolving 1.6.4 ... 1.6.4 (1.6.4), 19 files, 11.6 MB
 
 done: 0 downloaded, 19 already present, 0 failed
-root: <安装目录>\.testmc\cli-doc
+root: E:\DEV\WechatBotWorkspace\mcdl\.testmc\cli-doc
 ```
 
 进度条的格式是：

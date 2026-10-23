@@ -3,9 +3,7 @@ name: release
 on:
   push:
     tags:
-      # 只有 1.x 及以后的正式版本才发 Release。0.x 是开发期版本：可以打 tag 留档，
-      # 但不分发二进制，哈希/签名链从 1.0.0 开始建立。
-      - 'v[1-9]*'
+      - 'v*'
 
 concurrency:
   group: release-${{ github.ref }}

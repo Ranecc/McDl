@@ -36,7 +36,7 @@
 修复办法是重新跑一次安装：已经对的文件按 SHA1 跳过，只补缺失与不符的那些。实测删掉一个库、改坏一个 jar 之后：
 
 ```powershell
-mcdl install 1.21.4 --root <安装目录>\verify-e2e --no-assets
+mcdl install 1.21.4 --root E:\DEV\WechatBotWorkspace\.tmp-verify-e2e --no-assets
 ```
 
 ```
@@ -56,12 +56,12 @@ mcdl verify <version|pack.zip> --root DIR [--no-assets] [--threads N]
 它和 `plan` 一样只解析、不下载，然后逐个复核磁盘。目标可以是版本号，也可以是已存在的整合包文件（按整合包解析）。干净时：
 
 ```powershell
-mcdl verify 1.21.4 --root <安装目录>\verify-e2e
+mcdl verify 1.21.4 --root E:\DEV\WechatBotWorkspace\.tmp-verify-e2e
 ```
 
 ```
 resolving 1.21.4 ... 1.21.4 (1.21.4), 69 files
-root: <安装目录>\verify-e2e
+root: E:\DEV\WechatBotWorkspace\.tmp-verify-e2e
 verifying ...
 校验 69 个文件：全部一致
 ```
