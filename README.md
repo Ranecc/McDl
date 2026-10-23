@@ -1,5 +1,7 @@
 # McDl
 
+![Fish](https://img.shields.io/badge/Powered%20by-大肥鱼-blue)
+
 McDl 是面向 Windows 的 Minecraft 游戏文件下载器。它把某个版本或某个整合包运行所需的文件——客户端 jar、libraries、natives、资源索引与 assets——写入指定的 `.minecraft` 目录，产出可被 HMCL、PCL2、官方启动器等直接使用的游戏本体。账号登录、版本隔离与游戏启动由启动器负责，不属于 McDl 的职责。
 
 本项目的直接背景：2026 年 10 月 20 日，PCL2 自 2.99.0.0 起移除内置下载功能，同日国内数个第三方启动器亦相继下线下载服务。此后补一份干净的游戏文件，需要使用者自行获取版本清单、库文件、资源索引与各类镜像地址。McDl 将这一流程收敛为单个可执行文件。

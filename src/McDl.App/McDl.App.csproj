@@ -10,8 +10,8 @@
     <AssemblyTitle>McDl Minecraft 下载器</AssemblyTitle>
     <Product>McDl</Product>
     <Description>Standalone Minecraft file downloader</Description>
-    <Version>0.4.1</Version>
-    <FileVersion>0.4.1.0</FileVersion>
+    <Version>0.4.2</Version>
+    <FileVersion>0.4.2.0</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">

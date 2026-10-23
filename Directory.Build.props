@@ -25,8 +25,13 @@
       把仓库根目录映射成 /_/，让 PDB 里的文档路径不随检出目录变化。
       $(MSBuildThisFileDirectory) 自带结尾反斜杠，正好是 PathMap 需要的 "目录=值" 形式。
       命令行传 -p:PathMap=... 是全局属性，会覆盖这里。
+
+      NuGet 全局缓存目录（%USERPROFILE%\.nuget\packages）同样要映射：引用程序集的绝对路径
+      会进编译器输入，不同用户名（本机 Admin、runner 上的 runneradmin）会得到不同的模块版本号
+      （MVID），进而让整个程序集字节不同。实测见 docs/reproducible-builds.md。
     -->
     <PathMap>$(MSBuildThisFileDirectory)=/_/</PathMap>
+    <PathMap Condition="'$(NuGetPackageRoot)' != ''">$(PathMap),$(NuGetPackageRoot)=/_/nuget/</PathMap>
 
     <!-- SourceLink 在 net48 上要求 portable PDB。 -->
     <DebugType>portable</DebugType>

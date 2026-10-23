@@ -2,6 +2,14 @@
 
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.2] - 2026-10-23
+
+### 修复
+
+- 修复：`PathMap` 增加 NuGet 全局缓存目录的映射（`$(NuGetPackageRoot)=/_/nuget/`）。引用程序集的绝对路径会进入编译器输入，本机 `C:\Users\Admin\.nuget` 与 CI 的 `C:\Users\runneradmin\.nuget` 让 `McDl.Core.dll` 的模块版本号不同（0.4.1 实测：CI `0787A95F…`、本机 `500F44BC…`），进而让内嵌了它的单文件 exe 整块不同
+- 修复：`tools/build-release.ps1` 把发布包里的 `README.md` / `LICENSE.txt` 统一成 UTF-8 无 BOM + LF。`.gitattributes` 让 CI 检出的是 CRLF，直接复制会让 zip 随检出环境变化
+- 文档：`docs/reproducible-builds.md` 记录这两条根因与验证方式
+
 ## [0.4.1] - 2026-10-23
 
 ### 修复

@@ -70,6 +70,17 @@ function Get-Sha256([string]$Path) {
     (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
 }
 
+# 发布包里的文本文件统一成 UTF-8 无 BOM + LF。
+# 检出时的换行由 .gitattributes 决定（Windows 上是 CRLF），直接 Copy-Item 会让同一提交
+# 在本地与 CI 上打出不同的 zip；这里按字节归一，zip 内容就不随检出环境变化。
+function Copy-ReleaseText([string]$Source, [string]$Destination) {
+    if (-not (Test-Path -LiteralPath $Source)) { throw "缺少发布用文件：$Source" }
+    $text = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($Source))
+    if ($text.Length -gt 0 -and $text[0] -eq [char]0xFEFF) { $text = $text.Substring(1) }
+    $text = $text.Replace("`r`n", "`n")
+    [IO.File]::WriteAllText($Destination, $text, (New-Object Text.UTF8Encoding($false)))
+}
+
 # 固定时间戳写入的 zip：同一批文件在不同机器/不同时间打包，字节一致。
 function New-DeterministicZip {
     param(
@@ -214,10 +225,8 @@ foreach ($dir in @($stagingBundled, $stagingUnbundled)) {
 
 Copy-Item -LiteralPath $bundledExe -Destination (Join-Path $stagingBundled 'McDl.exe')
 foreach ($extra in @('README.md', 'LICENSE')) {
-    $src = Join-Path $repoRoot $extra
-    if (-not (Test-Path -LiteralPath $src)) { throw "缺少发布用文件：$src" }
     $dest = if ($extra -eq 'LICENSE') { 'LICENSE.txt' } else { $extra }
-    Copy-Item -LiteralPath $src -Destination (Join-Path $stagingBundled $dest)
+    Copy-ReleaseText (Join-Path $repoRoot $extra) (Join-Path $stagingBundled $dest)
 }
 Copy-Item -LiteralPath $bundledExe -Destination (Join-Path $dist "McDl-$Version.exe")
 
@@ -242,8 +251,13 @@ $unbundledFiles = @(
     @{ Source = (Join-Path $repoRoot 'LICENSE'); Name = 'LICENSE.txt' }
 )
 foreach ($file in $unbundledFiles) {
-    if (-not (Test-Path -LiteralPath $file.Source)) { throw "缺少不内嵌版本所需的文件：$($file.Source)" }
-    Copy-Item -LiteralPath $file.Source -Destination (Join-Path $stagingUnbundled $file.Name)
+    if ($file.Name -eq 'README.md' -or $file.Name -eq 'LICENSE.txt') {
+        Copy-ReleaseText $file.Source (Join-Path $stagingUnbundled $file.Name)
+    }
+    else {
+        if (-not (Test-Path -LiteralPath $file.Source)) { throw "缺少不内嵌版本所需的文件：$($file.Source)" }
+        Copy-Item -LiteralPath $file.Source -Destination (Join-Path $stagingUnbundled $file.Name)
+    }
 }
 # Costura.dll 只是内嵌版本的装载器，不随不内嵌包分发。
 if (Test-Path -LiteralPath (Join-Path $appOutDir 'Costura.dll')) {
