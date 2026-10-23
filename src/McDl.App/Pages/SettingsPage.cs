@@ -19,6 +19,7 @@ namespace McDl.App.Pages
         private readonly UiNumber _threads;
         private readonly UiCheck _assets;
         private readonly UiButton _save;
+        private readonly UiButton _reset;
 
         public SettingsPage(Settings settings)
         {
@@ -40,6 +41,8 @@ namespace McDl.App.Pages
             _assets = new UiCheck { Text = "默认下载资源文件（assets）", Checked = settings.WithAssets };
             _save = new UiButton { Text = "保存设置", Style = ButtonStyle.Primary };
             _save.Click += OnSave;
+        _reset = new UiButton { Text = "恢复默认", Style = ButtonStyle.Secondary };
+        _reset.Click += OnReset;
 
             _card.Controls.Add(_theme);
             _card.Controls.Add(_root);
@@ -47,6 +50,7 @@ namespace McDl.App.Pages
             _card.Controls.Add(_threads);
             _card.Controls.Add(_assets);
             _card.Controls.Add(_save);
+        _card.Controls.Add(_reset);
 
             Controls.Add(_card);
         }
@@ -85,6 +89,7 @@ namespace McDl.App.Pages
             y += 22 + 30;
 
             _save.SetBounds(pad, y, 132, Metrics.ButtonHeight);
+            _reset.SetBounds(pad + 132 + 12, y, 132, Metrics.ButtonHeight);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -142,6 +147,25 @@ namespace McDl.App.Pages
 
             var handler = Footer;
             if (handler != null) handler("配色：" + _theme.SelectedText);
+        }
+
+        private void OnReset(object sender, EventArgs e)
+        {
+            var defaults = Settings.Defaults();
+            _settings.Root = defaults.Root;
+            _settings.Threads = defaults.Threads;
+            _settings.WithAssets = defaults.WithAssets;
+            _settings.ThemeMode = defaults.ThemeMode;
+            _settings.Save();
+
+            _root.Text = _settings.Root;
+            _threads.Value = _settings.Threads;
+            _assets.Checked = _settings.WithAssets;
+            _theme.SelectedIndex = _settings.ThemeMode == ThemeMode.Light ? 1 : (_settings.ThemeMode == ThemeMode.Dark ? 2 : 0);
+            ThemeManager.Apply(_settings.ThemeMode);
+
+            var handler = Footer;
+            if (handler != null) handler("已恢复默认设置");
         }
 
         private void OnSave(object sender, EventArgs e)

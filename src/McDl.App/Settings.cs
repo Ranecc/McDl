@@ -24,6 +24,18 @@ namespace McDl.App
             }
         }
 
+        /// <summary>全新用户的默认值：%APPDATA%\.minecraft、8 线程、下 assets、跟随系统配色。</summary>
+        public static Settings Defaults()
+        {
+            return new Settings
+            {
+                Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ".minecraft"),
+                Threads = 8,
+                WithAssets = true,
+                ThemeMode = ThemeMode.System
+            };
+        }
+
         public static Settings Load()
         {
             Settings loaded = null;
@@ -36,7 +48,7 @@ namespace McDl.App
                 // A broken settings file must never block startup.
             }
 
-            var result = loaded ?? new Settings();
+            var result = loaded ?? Defaults();
             if (string.IsNullOrWhiteSpace(result.Root))
                 result.Root = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ".minecraft");
