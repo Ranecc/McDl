@@ -19,3 +19,6 @@ TestResults/
 .testpack/
 .tmp-plan/
 .minecraft/
+
+# 本机自用的泄漏扫描脚本，不进仓库（CI 里有等价的内联检查）
+tools/check-leaks.ps1

@@ -17,7 +17,7 @@
 
 ## 实测数字
 
-2026-10-23，SDK 10.0.301，`E:\DEV\WechatBotWorkspace\mcdl` 与副本目录，两边都先删 `bin` / `obj` / `dist`：
+2026-10-23，SDK 10.0.301，仓库目录与它的一个副本目录（路径不同、深度不同），两边都先删 `bin` / `obj` / `dist`：
 
 ```text
 dotnet build mcdl.sln -c Release
@@ -89,7 +89,7 @@ Newtonsoft.Json.dll   两边相同
 McDl.Core.dll         本机 500F44BC…   CI 0787A95F…   都是 107,008 B
 ```
 
-`Core.dll` 逐字节比对只有 72 处不同：PE 校验和，加一处 16 字节的模块版本号（MVID）。MVID 由编译器按输入算出，输入里含引用程序集的绝对路径——本机 NuGet 全局缓存在 `C:\Users\Admin\.nuget\packages`，runner 上是 `C:\Users\runneradmin\.nuget\packages`。`PathMap` 当时只映射了仓库根目录，没映射 NuGet 缓存，于是 MVID 不同、`Core.dll` 不同，Costura 再把 `Core.dll` 压缩内嵌进 exe，压缩流整块变化（exe 里约 49,747 字节不同）。
+`Core.dll` 逐字节比对只有 72 处不同：PE 校验和，加一处 16 字节的模块版本号（MVID）。MVID 由编译器按输入算出，输入里含引用程序集的绝对路径——本机 NuGet 全局缓存在自己的用户目录下（`<用户名>\.nuget\packages`），runner 上是 `C:\Users\runneradmin\.nuget\packages`，两者前缀不同。`PathMap` 当时只映射了仓库根目录，没映射 NuGet 缓存，于是 MVID 不同、`Core.dll` 不同，Costura 再把 `Core.dll` 压缩内嵌进 exe，压缩流整块变化（exe 里约 49,747 字节不同）。
 
 修法是在 `Directory.Build.props` 的 `PathMap` 里追加 NuGet 缓存根：
 

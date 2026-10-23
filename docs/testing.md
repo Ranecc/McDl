@@ -129,16 +129,19 @@ GUI 手工检查：
 
 `.github\workflows\ci.yml`，push 到 `main`、PR、手动触发都会跑，同一分支的新提交会取消上一次运行。作业名是 `build`（ASCII，方便分支保护里搜），跑在 `windows-latest`：
 
-1. `actions/checkout@v4`。
+1. `actions/checkout@v4`（`fetch-depth: 0`，可复现性自检要读历史）。
 2. `actions/setup-dotnet@v4` 读 `global.json`。SDK 版本以这个文件为准，workflow 里不写死。
-3. `dotnet restore mcdl.sln --locked-mode`。锁文件对不上就让 CI 失败，别让它悄悄解析新版本。
-4. `dotnet build mcdl.sln -c Release`。
-5. `pwsh -NoProfile -File tools\test.ps1`。
-6. 可复现性自检：把同一个提交取到另一个工作树里再裸 build 一次，比对两处 `McDl.exe` 的 SHA256，不同就失败。这条自检本身还没在 GitHub Actions 上跑过。
-7. 从 `McDl.App.csproj` 读出版本号，交给 `pwsh -File tools\build-release.ps1 -Version <版本>`，产出与发布同一套文件。
-8. 用 `dist\McDl-<版本>.exe.sha256` 校验自己刚打出来的 exe，对不上就失败。
-9. 上传 artifact `mcdl-exe`：`dist\McDl-<版本>.exe`、`dist\McDl-<版本>.exe.sha256`、`dist\SHA256SUMS`。
+3. 打印 `dotnet --version`，留一行日志便于比对。
+4. 检查编译输入的行尾：`*.cs`、`*.csproj`、`*.props`、`*.json`、`*.xml`、`*.targets` 里出现字节 13 就失败。
+5. 检查本机路径：用户目录与 UNC 路径在文档、脚本里出现就失败（`D:\Games` 这类示例路径不拦）。
+6. `dotnet restore mcdl.sln --locked-mode`。锁文件对不上就让 CI 失败，别让它悄悄解析新版本。
+7. `dotnet build mcdl.sln -c Release`。
+8. `pwsh -NoProfile -File tools\test.ps1`。
+9. 可复现性自检：把同一个提交取到另一个工作树里再裸 build 一次，比对两处 `McDl.exe` 的 SHA256，不同就失败。
+10. 从 `McDl.App.csproj` 读出版本号，交给 `pwsh -File tools\build-release.ps1 -Version <版本>`，产出与发布同一套文件。
+11. 用 `dist\McDl-<版本>.exe.sha256` 校验自己刚打出来的 exe，对不上就失败。
+12. 上传 artifact `mcdl-exe`：`dist\McDl-<版本>.exe`、`dist\McDl-<版本>.exe.sha256`、`dist\SHA256SUMS`，并打印各组件 SHA256。
 
-第 7 步用的是与 Release 完全相同的命令和参数，所以打出来的 exe 与 Release 资产逐字节相同。具体哈希由构建时嵌进程序集的 commit 决定，每提交一次都会变，所以永远看产物旁边的 `McDl-<版本>.exe.sha256`，不要照抄文档里的数字。exe 大小通常在 385 KB 左右，这个数也不是校验依据。
+第 10 步用的是与 Release 完全相同的命令和参数，所以打出来的 exe 与 Release 资产逐字节相同。具体哈希由构建时嵌进程序集的 commit 决定，每提交一次都会变，所以永远看产物旁边的 `McDl-<版本>.exe.sha256`，不要照抄文档里的数字。exe 大小通常在 385 KB 左右，这个数也不是校验依据。
 
 分支保护要求的必需状态检查就是 `build` 这一个。CI 不跑真实下载，也不验 Forge installer。涉及网络和 Java 的改动需要本地按上面的步骤走一遍。

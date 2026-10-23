@@ -53,6 +53,34 @@ jobs:
           }
           Write-Host '编译输入全部为 LF。'
 
+      # 文档里的示例路径要写占位符（<安装目录>），不要贴本机真实路径。
+      # 这里只拦两类明显会指到人的东西：用户目录与 UNC 路径；D:\Games 这类示例路径不拦。
+      - name: Check machine-specific paths
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $hits = @()
+          foreach ($path in (git ls-files)) {
+            if (-not (Test-Path -LiteralPath $path)) { continue }
+            $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $path))
+            if ([Array]::IndexOf($bytes, [byte]0) -ge 0) { continue }
+            $text = [System.Text.Encoding]::UTF8.GetString($bytes)
+            $n = 0
+            foreach ($line in ($text -split "`n")) {
+              $n++
+              if ($line -match '(?i)Users\\(?!runneradmin)[A-Za-z0-9._-]+') {
+                $hits += ("{0}:{1}: 用户目录  {2}" -f $path, $n, $line.Trim())
+              }
+              elseif ($line -match '(?i)\\\\[A-Za-z0-9._-]+\\') {
+                $hits += ("{0}:{1}: UNC 路径  {2}" -f $path, $n, $line.Trim())
+              }
+            }
+          }
+          if ($hits.Count -gt 0) {
+            throw ("发现本机路径，请改成占位符：" + [Environment]::NewLine + ($hits -join [Environment]::NewLine))
+          }
+          Write-Host '没有本机用户目录或 UNC 路径。'
+
       - name: Restore (locked mode)
         shell: pwsh
         run: dotnet restore mcdl.sln --locked-mode
