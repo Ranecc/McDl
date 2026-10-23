@@ -44,7 +44,7 @@ McDl-0.4.4-win-unbundled.zip  B597AA33452EC400EE9D03E1A0648DD3FA537AA460981F3569
 McDl-0.4.4.exe                2B7B486351C02B402C52D721CB2B11918DD4AA3DE13BB82A74C88AF2E9E2AB1F  385,024 B
 ```
 
-本机重建与 Release 页面上的 `SHA256SUMS` 逐字节相同，大小也相同。也就是说：只要你用 `global.json` 指定的 SDK、跑 `BUILD-INFO.txt` 里抄下来的那几条命令，就能得到与发布包完全一样的字节。
+本机重建与 Release 页面上的 `SHA256SUMS` 逐字节相同，大小也相同。v0.5.0 又对了一次，同样一致（`McDl-0.5.0-win.zip` `FA7D18C1…` 375,416 B、`-unbundled.zip` `5F06EEC3…` 370,879 B）。也就是说：只要你用 `global.json` 指定的 SDK、跑 `BUILD-INFO.txt` 里抄下来的那几条命令，就能得到与发布包完全一样的字节。
 
 下面几节记录的是**对齐之前**踩过的每一层坑，读它们是为了知道为什么现在的构建参数长这样，而不是为了复现历史失败。
 
