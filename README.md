@@ -198,6 +198,7 @@ Forge 的 installer 需要 Java 17 或更高版本，但本机未找到可用的
 
 **exe 为何仅三百余 KB。** 目标框架为 net48，运行时使用系统自带组件；Core 与 Newtonsoft.Json 经 Costura 嵌入 exe。若改为自带运行时的 .NET 8 单文件发布，体积在数十 MB 量级。
 
+**首次运行时被 SmartScreen 拦住（「Windows 已保护你的电脑」／「未知发布者」）。** 从浏览器下载的单文件 exe 会带上「来自 Internet」标记，SmartScreen 对没有信誉记录的文件一律先拦一次警告：点「更多信息 → 仍要运行」即可。这项信誉按文件哈希与发布者证书累积，微软自己的说法是「数周时间与来自广泛用户的数百次全新安装」，[签名也不能免疫](https://learn.microsoft.com/zh-cn/windows/apps/package-and-deploy/smartscreen-reputation)——有效证书只是把提示从「未知发布者」换成显示发布者名称，OV 与 EV 都不再免检；只有 Microsoft Store 分发的应用完全不触发。本项目 0.x 不购买代码签名证书，所以这个提示会一直在，能自己验证的是字节而不是发布者：按 [docs/verifying-releases.md](docs/verifying-releases.md) 用 `SHA256SUMS` 对哈希并验 cosign 签名，或按 `BUILD-INFO.txt` 自行重建比对。
 **安装至 `Program Files` 失败。** 权限不足，改用普通用户目录，或以管理员身份运行。
 
 **日志文件。** 图形界面日志仅保留当次运行，不写文件。需要留存输出时使用命令行，可重定向保存。
@@ -230,7 +231,7 @@ pwsh -NoProfile -File tools\build-release.ps1 -Version 0.4.0
 
 ### 可复现构建
 
-同一 SDK、同一提交，两个不同目录 clean build 得到的 `McDl.exe` 逐字节一致（已实测，打包脚本产出的 exe 与两个 zip 也一致）。SDK 补丁版必须一致，否则字节会变；CI 与本机在同一 SDK 下的比对还没有结论。现状与验证方法见 [docs/reproducible-builds.md](docs/reproducible-builds.md)。
+同一 SDK、同一提交，两个不同目录 clean build 得到的 `McDl.exe` 逐字节一致（已实测，打包脚本产出的 exe 与两个 zip 也一致）。SDK 补丁版必须一致，否则字节会变。CI 与本机在同一 SDK 下也逐字节一致（v0.4.4 首次对上，v0.5.0、v0.6.0 连续复核）。现状与验证方法见 [docs/reproducible-builds.md](docs/reproducible-builds.md)。
 
 修改代码前请先阅读 [docs/contributing.md](docs/contributing.md)；内部分层见 [docs/architecture.md](docs/architecture.md)。
 

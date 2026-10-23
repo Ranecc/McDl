@@ -42,6 +42,6 @@ McDl 不接收、不保存任何账号凭证，也从不请求微软 / Mojang �
 - Fabric 库的校验取决于上游有没有给哈希。每个库会去 maven 取一次 `.sha1`，取到就强校验；取不到（404、超时、内容不是哈希）时这个库只检查文件是否存在。结束时日志会写「Fabric 库 N 个，其中 M 个能取到上游 .sha1 并校验」。所以短板是「上游没给就等于没校验」，不是从不校验。
 - Forge / NeoForge installer 拿不到 `.sha1` 时不会中止，只写日志提示。
 - 发布包的签名只覆盖 `SHA256SUMS`，不覆盖单个 exe 或 SBOM。
-- 可复现构建的跨环境验证尚未完成，细节见 [docs/reproducible-builds.md](docs/reproducible-builds.md)。
+- 签名只覆盖 `SHA256SUMS`（两个 zip），不覆盖 exe；exe 的完整性靠可复现构建自行比对，方法见 [docs/reproducible-builds.md](docs/reproducible-builds.md)。
 
 这些是已知局限，不是待办清单上的「以后再说」。改掉一条就从这里删一条。

@@ -112,6 +112,6 @@ Windows 上用 `cosign.exe` 跑同一条命令，PowerShell 里把行尾的 `\` 
 
 - **exe 不在 `SHA256SUMS` 里，它的哈希也没有签名。** `SHA256SUMS` 只覆盖两个 zip；`McDl-0.4.0.exe` 与 `McDl-<版本>.exe.sha256` 都是方便文件，`SHA256SUMS.sig` 不覆盖它们。要验 exe，走 zip 那条链：验 `SHA256SUMS` → 对 zip 哈希 → 解压。单拿一个 exe 时，能做的只有比对 `BUILD-INFO.txt` 里的提交号与「产品版本」。
 - **SBOM 不校验内容。** `sbom.json` 说明用了哪些依赖及版本，不保证二进制与清单一一对应，只能辅助排查。
-- **可复现性只验证到「两个目录」。** 实测同 SDK、同提交、两个不同目录 clean build 的 `McDl.exe` 与打包产物都逐字节一致；CI 与本机的比对还没有结论（CI 自检没在 runner 上跑过）。另外 zip 里含 `README.md`，README 一改 zip 哈希就变、exe 不变，所以引用哈希要注明提交。细节见 [reproducible-builds.md](reproducible-builds.md)。
+- **可复现性验证的范围。** 实测同 SDK、同提交、两个不同目录 clean build 的 `McDl.exe` 与打包产物都逐字节一致，GitHub Actions 上的产物也一致（v0.4.4 起连续复核到 v0.6.0）。仍未覆盖：不同补丁版 SDK、不同 Windows 版本、非 Windows 环境。详见 [reproducible-builds.md](reproducible-builds.md)。另外 zip 里含 `README.md`，README 一改 zip 哈希就变、exe 不变，所以引用哈希要注明提交。细节见 [reproducible-builds.md](reproducible-builds.md)。
 - **`SHA256SUMS` 不覆盖 `BUILD-INFO.txt`、`RELEASE-NOTES.md`、`sbom.json`。** 这几份文件被替换不会被发现。
 - **签名者身份是仓库的 workflow，不是某个人。** 有仓库写权限的人能改 workflow 并发新 tag；签名能证明「来自这个仓库的发布流程」，不能证明「作者本人审过每一行」。
