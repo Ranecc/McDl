@@ -36,6 +36,18 @@
     <!-- SourceLink 在 net48 上要求 portable PDB。 -->
     <DebugType>portable</DebugType>
 
+    <!--
+      Release 不产 PDB。
+      原因：portable PDB 的字节里含跨机器不稳定的部分（实测同一提交、同一 SDK、同一套
+      PathMap，本机与 CI 的 McDl.Core.pdb 内容不同），而 PE 的调试目录会写入 PDB 的 GUID、
+      校验和，Roslyn 又把调试信息算进模块版本号（MVID），于是 Core.dll 差 72 字节、
+      内嵌它的单文件 exe 整块不同。发布产物本来就不带 PDB，Debug/Release 分别处理更省事：
+      需要行号调试时用 Debug 配置，或自行传 -p:DebugType=portable。
+      实测记录见 docs/reproducible-builds.md。
+    -->
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
+
     <!-- 把提交信息写进程序集，右键属性可见，也方便和 BUILD-INFO.txt 对上。 -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <RepositoryUrl>https://github.com/Ranecc/McDl</RepositoryUrl>

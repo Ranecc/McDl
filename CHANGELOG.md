@@ -2,6 +2,13 @@
 
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.4] - 2026-10-23
+
+### 修复
+
+- 修复：Release 配置不再生成 PDB（`DebugType=none` / `DebugSymbols=false`）。0.4.3 解决了检出换行差异后，CI 与本机的 `McDl.Core.dll` 仍差 72 字节：PE 调试目录里写着 PDB 的 GUID 与校验和，而 portable PDB 的字节本身跨机器不稳定；Roslyn 又把调试信息算进模块版本号，于是内嵌它的单文件 exe 整块不同。发布产物本来就不带 PDB，Release 直接不产 PDB
+- 添加：CI 日志打印 `McDl.Core.dll`、未内嵌 exe、发布 exe 各自的 SHA256，方便下次跨机器比对时直接定位到组件
+
 ## [0.4.3] - 2026-10-23
 
 ### 修复

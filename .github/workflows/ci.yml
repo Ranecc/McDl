@@ -141,3 +141,20 @@ jobs:
             dist/McDl-*.exe.sha256
             dist/SHA256SUMS
           if-no-files-found: error
+
+      # 跨机器比对时，单文件 exe 的差异很难定位到具体组件；这里把每个组件的哈希也打进日志。
+      - name: Log component hashes
+        shell: pwsh
+        run: |
+          $targets = @(
+            'src\McDl.Core\bin\Release\net48\McDl.Core.dll',
+            'src\McDl.App\bin\Release\net48\McDl.exe',
+            "dist\McDl-$env:VERSION.exe"
+          )
+          foreach ($t in $targets) {
+            if (Test-Path -LiteralPath $t) {
+              Write-Host ("{0}  {1}" -f (Get-FileHash $t -Algorithm SHA256).Hash, $t)
+            } else {
+              Write-Host "missing: $t"
+            }
+          }
