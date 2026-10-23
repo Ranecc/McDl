@@ -5,7 +5,7 @@
 ## 需要什么
 
 - Windows 10 / 11。`McDl.App` 是 WinForms 程序，测试与发布脚本也是 PowerShell。
-- .NET SDK 10.0.301。仓库根的 `global.json` 固定了这个版本，`rollForward` 为 `latestPatch`：装 10.0.301，或者同一 feature band 里更高的补丁版都行。`dotnet --version` 应输出 `10.0.301`。
+- .NET SDK 10.0.301，必须精确这个版本。仓库根的 `global.json` 用 `rollForward: disable` 钉死，装 10.0.302 或更新的补丁版都不行——补丁版不同，编出来的字节就不同，见 [docs/reproducible-builds.md](docs/reproducible-builds.md)。版本不对时 `dotnet` 会直接报错并提示需要哪个版本，照提示装。`dotnet --version` 应输出 `10.0.301`。
 - PowerShell 7（`pwsh`）。Windows PowerShell 5.1 大多也能跑，下文命令按 `pwsh` 写。
 - 不需要 Visual Studio。net48 的引用程序集由 `Microsoft.NETFramework.ReferenceAssemblies` 包提供，有 SDK 就够。
 
@@ -100,7 +100,7 @@ pwsh -NoProfile -File tools\api-surface.ps1
 
 **`dotnet build` 报 NU1004 或锁文件不一致。** 项目文件与 `packages.lock.json` 漂移了。先跑 `dotnet restore mcdl.sln --force-evaluate`，检查生成的锁文件差异再提交。
 
-**`dotnet --version` 不是 10.0.301。** 装了别的 SDK 时会按 `global.json` 的 `rollForward` 选版本；选了更高 feature band 会直接报错。装 10.0.301，或者改 `global.json` 并承担未验证的风险。
+**`dotnet --version` 不是 10.0.301。** `global.json` 现在是 `rollForward: disable`，只认 10.0.301，任何别的版本（哪怕同一 band 的更高补丁）都会让 SDK 解析失败并提示需要哪个版本。按提示装 10.0.301，或者改 `global.json` 并承担产物对不上的风险。
 
 **杀软把 `McDl.exe` 拦了。** Costura 会在运行时解压并加载嵌入式程序集，行为上像自解压程序，部分杀软会误报。换成不打包依赖版通常可以绕开。
 

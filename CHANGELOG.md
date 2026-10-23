@@ -2,6 +2,13 @@
 
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.1] - 2026-10-23
+
+### 修复
+
+- 修复：`global.json` 的 `rollForward` 由 `latestPatch` 改为 `disable`。0.4.0 的本机构建用 SDK 10.0.301、CI 用 10.0.303，同一提交与命令产出的 zip 哈希不同（本机 `09760064…`、CI `B490F621…`）。钉死补丁版后两边使用同一编译器，产出一致
+- 文档：`docs/reproducible-builds.md` 补上 SDK 补丁版约束的实测过程，`BUILDING.md` 写明必须安装精确的 10.0.301
+
 ## [0.4.0] - 2026-10-23
 
 ### 添加

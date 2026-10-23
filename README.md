@@ -153,7 +153,7 @@ Forge 的 installer 需要 Java 17 或更高版本，但本机未找到可用的
 
 ## 构建与测试
 
-环境要求：Windows 10 / 11，.NET SDK 10.0.301（`global.json` 固定，`rollForward` 为 `latestPatch`），PowerShell 7。完整步骤见 [BUILDING.md](BUILDING.md)。
+环境要求：Windows 10 / 11，.NET SDK 10.0.301（`global.json` 以 `rollForward: disable` 钉死这一版本，补丁版不同构建出的字节就不同），PowerShell 7。完整步骤见 [BUILDING.md](BUILDING.md)。
 
 ```powershell
 dotnet restore mcdl.sln --locked-mode
@@ -179,7 +179,7 @@ pwsh -NoProfile -File tools\build-release.ps1 -Version 0.4.0
 
 ### 可复现构建
 
-同一 SDK、同一提交，两个不同目录 clean build 得到的 `McDl.exe` 逐字节一致（已实测，打包脚本产出的 exe 与两个 zip 也一致）。CI 产物与本机的比对还没有结论，现状与验证方法见 [docs/reproducible-builds.md](docs/reproducible-builds.md)。
+同一 SDK、同一提交，两个不同目录 clean build 得到的 `McDl.exe` 逐字节一致（已实测，打包脚本产出的 exe 与两个 zip 也一致）。SDK 补丁版必须一致，否则字节会变；CI 与本机在同一 SDK 下的比对还没有结论。现状与验证方法见 [docs/reproducible-builds.md](docs/reproducible-builds.md)。
 
 修改代码前请先阅读 [docs/contributing.md](docs/contributing.md)；内部分层见 [docs/architecture.md](docs/architecture.md)。
 
