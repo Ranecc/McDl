@@ -10,8 +10,19 @@
     <AssemblyTitle>McDl Minecraft 下载器</AssemblyTitle>
     <Product>McDl</Product>
     <Description>Standalone Minecraft file downloader</Description>
-    <Version>0.3.0</Version>
-    <FileVersion>0.3.0.0</FileVersion>
+    <Version>0.4.0</Version>
+    <FileVersion>0.4.0.0</FileVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!--
+      Costura 在 Release 下重写 exe 的 debug directory 时会把本机绝对路径（obj 目录）写回去，
+      导致同一提交在不同目录构建出的 McDl.exe 字节不同，破坏可复现构建。
+      Release 不产出 App 的 PDB，就不会写这段路径；Core/Cli 仍保留 portable PDB 与 SourceLink。
+      详见 docs/reproducible-builds.md。
+    -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>

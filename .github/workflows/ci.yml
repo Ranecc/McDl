@@ -1,56 +1,125 @@
-name: CI
+name: ci
 
 on:
   push:
-    branches:
-      - main
+    branches: [main, master]
   pull_request:
   workflow_dispatch:
 
-# 同一分支/PR 的新提交会取消上一次尚未结束的运行
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
+  # 作业 id 与显示名都必须保持 ASCII 的 "build"：分支保护的必需状态检查名为 build。
   build:
-    # Job 名保持 ASCII：GitHub 的分支保护「必需状态检查」里按这个名字选，
-    # 中文名在搜索框里不好找。
     name: build
     runs-on: windows-latest
+    timeout-minutes: 25
 
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: 安装 .NET SDK
+      - name: Set up .NET SDK from global.json
         uses: actions/setup-dotnet@v4
         with:
-          # 目标框架是 net48，SDK 只用于编译
-          dotnet-version: 8.0.x
+          global-json-file: global.json
 
-      - name: 还原依赖
-        run: |
-          dotnet restore src/McDl.Core/McDl.Core.csproj
-          dotnet restore src/McDl.App/McDl.App.csproj
-          dotnet restore src/McDl.Cli/McDl.Cli.csproj
+      - name: Show SDK version
+        shell: pwsh
+        run: dotnet --version
 
-      - name: 构建 McDl.App
-        run: dotnet build src/McDl.App/McDl.App.csproj -c Release --no-restore
+      - name: Restore (locked mode)
+        shell: pwsh
+        run: dotnet restore mcdl.sln --locked-mode
 
-      - name: 构建 McDl.Cli
-        run: dotnet build src/McDl.Cli/McDl.Cli.csproj -c Release --no-restore
+      - name: Build (Release)
+        shell: pwsh
+        run: dotnet build mcdl.sln -c Release --no-restore --nologo
 
-      - name: 运行测试（有 tests 目录时）
+      - name: Test (xunit console runner)
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/test.ps1
+
+      # 可复现性自检：同一提交在另一个全新目录 clean build，产物必须逐字节相同。
+      # 只有 McDl.exe 会被 Costura 织入，它是最容易受路径影响的目标，所以只比对它。
+      - name: Reproducibility self-check (two clean builds)
         shell: pwsh
         run: |
-          # dotnet test 在 net48 + 新版 SDK 下无法加载 xUnit 适配器，改用控制台运行器（见 tools/test.ps1）
-          ./tools/test.ps1 -Configuration Release
+          $ErrorActionPreference = 'Stop'
+          $exe = 'src\McDl.App\bin\Release\net48\McDl.exe'
+          if (-not (Test-Path $exe)) { throw "找不到构建产物：$exe" }
+          $mainHash = (Get-FileHash $exe -Algorithm SHA256).Hash
+          Write-Host "主检出目录 McDl.exe SHA256: $mainHash"
 
-      - name: 上传构建产物
+          $repro = Join-Path $env:RUNNER_TEMP 'mcdl-repro'
+          if (Test-Path $repro) { Remove-Item $repro -Recurse -Force }
+          git worktree add --detach $repro HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'git worktree add 失败' }
+          try {
+            Push-Location $repro
+            try {
+              dotnet restore mcdl.sln --locked-mode
+              if ($LASTEXITCODE -ne 0) { throw '副本 restore 失败' }
+              dotnet build src\McDl.App\McDl.App.csproj -c Release --nologo
+              if ($LASTEXITCODE -ne 0) { throw '副本 build 失败' }
+            }
+            finally { Pop-Location }
+
+            $reproExe = Join-Path $repro $exe
+            $reproHash = (Get-FileHash $reproExe -Algorithm SHA256).Hash
+            Write-Host "副本目录 McDl.exe SHA256: $reproHash"
+            if ($mainHash -ne $reproHash) {
+              throw "可复现性被破坏：两次 clean build 的 McDl.exe 哈希不同（$mainHash != $reproHash）。请检查 Directory.Build.props 的 PathMap/DebugType 与 Costura 的织入设置。"
+            }
+            Write-Host '可复现性自检通过：两个目录的 McDl.exe 逐字节相同。'
+          }
+          finally {
+            git worktree remove --force $repro 2>$null
+          }
+
+      # 从项目文件读出版本号，写进 GITHUB_ENV 供后续步骤使用。
+      - name: Resolve version from csproj
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (dotnet msbuild src\McDl.App\McDl.App.csproj -getProperty:Version).Trim()
+          if (-not $version) { throw '无法从 McDl.App.csproj 读出版本号' }
+          Write-Host "版本：$version"
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # 直接跑发布脚本，让 CI 产物与 Release 产物是同一份字节（同一个命令、同样的 -p:Version）。
+      # 这一步会自己重新构建，前面 `dotnet build mcdl.sln` 的产物只用于测试与可复现性自检。
+      - name: Package release artifacts (same command as release)
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/build-release.ps1 -Version $env:VERSION -Configuration Release
+
+      # 校验脚本产出的 exe 与校验文件一致，再上传（exe 的校验以 McDl-<v>.exe.sha256 为准）。
+      - name: Verify exe checksum
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path 'dist' "McDl-$env:VERSION.exe"
+          $sum = "$exe.sha256"
+          if (-not (Test-Path $exe)) { throw "找不到发布产物：$exe" }
+          if (-not (Test-Path $sum)) { throw "找不到校验文件：$sum" }
+          $expected = ((Get-Content -LiteralPath $sum -Raw).Trim() -split '\s+')[0]
+          $actual = (Get-FileHash $exe -Algorithm SHA256).Hash
+          Write-Host "McDl.exe SHA256: $actual"
+          if ($expected -ne $actual) { throw "校验文件与 exe 不一致（$expected != $actual）" }
+
+      - name: Upload single-file exe with checksum
         uses: actions/upload-artifact@v4
         with:
           name: mcdl-exe
-          path: src/McDl.App/bin/Release/net48/McDl.exe
+          path: |
+            dist/McDl-*.exe
+            dist/McDl-*.exe.sha256
+            dist/SHA256SUMS
           if-no-files-found: error
-          retention-days: 14

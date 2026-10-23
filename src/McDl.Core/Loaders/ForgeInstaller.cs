@@ -32,7 +32,7 @@ namespace McDl.Core
 
         public string DisplayName => Kind == LoaderKind.Forge ? "Forge" : "NeoForge";
 
-        public Task ApplyAsync(InstallContext context, InstallPlan plan, string gameVersion, LoaderSpec loader,
+        public async Task ApplyAsync(InstallContext context, InstallPlan plan, string gameVersion, LoaderSpec loader,
             string profileId, CancellationToken ct)
         {
             if (context == null) throw new ArgumentNullException(nameof(context));
@@ -51,18 +51,56 @@ namespace McDl.Core
             if (plan.Detail?.JavaVersion == null || plan.Detail.JavaVersion.MajorVersion <= 0)
                 context.Log?.Invoke("原版元数据没写需要的 Java 版本，按 " + gameVersion + " 的要求用 Java " + requiredJava);
 
+            var sha1 = await FetchExpectedSha1Async(context, url, fileName, ct).ConfigureAwait(false);
+
             plan.Files.Add(new FileTask
             {
                 Label = fileName,
                 Url = url,
                 TargetPath = targetPath,
+                Sha1 = sha1,
                 Kind = SourceKind.Maven
             });
 
             plan.PostDownload.Add(token => RunInstallerAsync(context, plan, targetPath, installerVersion,
                 requiredJava, profileId, token));
+        }
 
-            return Task.CompletedTask;
+        /// <summary>
+        /// 拉 installer 旁边的 .sha1 来校验。拿不到就返回 null：此时仍然安装，但日志里说清楚没校验。
+        /// 这一步存在的原因是这个 jar 会被本机 Java 执行，属于“下载并执行二次载荷”，能校验就别放过。
+        /// </summary>
+        private async Task<string> FetchExpectedSha1Async(InstallContext context, string url, string fileName,
+            CancellationToken ct)
+        {
+            try
+            {
+                var listing = await context.Engine.GetTextAsync(url + ".sha1", SourceKind.Maven, ct).ConfigureAwait(false);
+                var sha1 = ParseSha1Listing(listing);
+                if (sha1 != null)
+                {
+                    context.Log?.Invoke("已取到 " + fileName + " 的上游 .sha1，下载后按它校验");
+                    return sha1;
+                }
+
+                context.Log?.Invoke("上游 .sha1 内容不像哈希，跳过对 " + fileName + " 的校验");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                context.Log?.Invoke("拿不到 " + fileName + " 的上游 .sha1（" + ex.Message + "），这次不校验它，只校验安装结果");
+            }
+
+            return null;
+        }
+
+        /// <summary>处理 Maven 的 .sha1 两种写法："&lt;hash&gt;" 与 "&lt;hash&gt;  &lt;文件名&gt;"。</summary>
+        internal static string ParseSha1Listing(string listing)
+        {
+            return Hashes.ParseSha1Listing(listing);
         }
 
         private string MavenBase => Kind == LoaderKind.Forge ? ForgeMavenBase : NeoForgeMavenBase;

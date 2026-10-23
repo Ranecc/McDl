@@ -95,6 +95,8 @@ D:\Games\.minecraft\
 
 除上述内容外，游戏目录中不会产生其他文件。`.mcdl` 为 McDl 的工作目录，删除后不影响已安装版本，下次安装 Forge 时 installer 会重新下载。
 
+图形界面把安装目录、线程数与 assets 勾选记在 `%APPDATA%\McDl\settings.json`，不写进游戏目录；命令行不读写这份设置。
+
 ## 运行环境
 
 Windows 10 或 11。Win10 1903 起系统自带 .NET Framework 4.8，无需单独安装运行时。
@@ -121,6 +123,14 @@ Forge 的 installer 需要 Java 17 或更高版本，但本机未找到可用的
 
 程序不设独立代理配置，HTTP 请求遵循 Windows 系统代理。
 
+## 验证发布包
+
+每个 release 附 `SHA256SUMS`、`McDl-<版本>.exe.sha256`、`BUILD-INFO.txt` 与 `sbom.json`，`SHA256SUMS` 另有一份 cosign keyless 签名（`SHA256SUMS.sig` 与 `SHA256SUMS.pem`）。先验签，再对哈希，命令可直接复制，见 [docs/verifying-releases.md](docs/verifying-releases.md)。发现安全问题请走私密报告，方式见 [SECURITY.md](SECURITY.md)。
+
+## 它会访问哪些地址、写哪些文件
+
+只连 Minecraft 官方域名与 BMCLAPI 镜像，不访问 GitHub API，没有遥测，也没有自动更新检查。安装只写目标目录，图形界面的设置写在 `%APPDATA%\McDl\settings.json`，不写注册表，不落日志文件。完整域名清单、目录布局，以及 Forge / NeoForge installer 会自己联网这件事，见 [docs/network-and-files.md](docs/network-and-files.md)。
+
 ## 常见问题
 
 **下载缓慢或连不上官方源。** 先观察日志中线路是否已切换至 BMCLAPI。两条线路均慢，一般为本机网络问题；启用代理时检查系统代理是否实际生效。Fabric meta 为直连，不受镜像影响。
@@ -143,13 +153,33 @@ Forge 的 installer 需要 Java 17 或更高版本，但本机未找到可用的
 
 ## 构建与测试
 
+环境要求：Windows 10 / 11，.NET SDK 10.0.301（`global.json` 固定，`rollForward` 为 `latestPatch`），PowerShell 7。完整步骤见 [BUILDING.md](BUILDING.md)。
+
 ```powershell
+dotnet restore mcdl.sln --locked-mode
 dotnet build mcdl.sln -c Release
 pwsh -NoProfile -File tools\test.ps1
-pwsh -NoProfile -File tools\build-release.ps1 -Version 0.2.1
+pwsh -NoProfile -File tools\build-release.ps1 -Version 0.4.0
 ```
 
-`tools\test.ps1` 经 xunit.console 直接运行 net48 测试程序集；勿用 `dotnet test`，缘由见 [docs/testing.md](docs/testing.md)。发布脚本将 exe、README、LICENSE 打入 `dist\McDl-<版本>-win.zip` 并输出 SHA256。
+`tools\test.ps1` 经 xunit.console 直接运行 net48 测试程序集；勿用 `dotnet test`，缘由见 [docs/testing.md](docs/testing.md)。
+
+发布脚本在 `dist\` 下产出两个包：`McDl-<版本>-win.zip` 是单文件版，`McDl-<版本>-win-unbundled.zip` 把 `McDl.Core.dll` 与 `Newtonsoft.Json.dll` 放在 exe 旁边。同时生成 `SHA256SUMS`、`BUILD-INFO.txt`、`RELEASE-NOTES.md`、`sbom.json`，以及单独的 `McDl-<版本>.exe` 与它的 `.sha256`。两个 zip 里都不放 PDB。
+
+### 依赖
+
+| 依赖 | 用途 |
+| --- | --- |
+| Newtonsoft.Json | 解析 Mojang 版本元数据、整合包与 Fabric meta 的 JSON |
+| Costura.Fody | 构建时把托管依赖嵌进单文件 exe |
+| Microsoft.SourceLink.GitHub | 把仓库地址与提交信息写进程序集和 PDB |
+| xunit（含 xunit.runner.console） | 测试，由 `tools\test.ps1` 运行 |
+
+具体版本以各项目旁的 `packages.lock.json` 为准，`dotnet restore --locked-mode` 按锁文件还原，不跟随浮动版本。
+
+### 可复现构建
+
+同一 SDK、同一提交，两个不同目录 clean build 得到的 `McDl.exe` 逐字节一致（已实测，打包脚本产出的 exe 与两个 zip 也一致）。CI 产物与本机的比对还没有结论，现状与验证方法见 [docs/reproducible-builds.md](docs/reproducible-builds.md)。
 
 修改代码前请先阅读 [docs/contributing.md](docs/contributing.md)；内部分层见 [docs/architecture.md](docs/architecture.md)。
 

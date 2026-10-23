@@ -20,8 +20,8 @@ src\McDl.App (WinForms)  src\McDl.Cli (mcdl.exe)
 | `Engine` | `DownloadEngine`、`MirrorRouter`、`FileTask`、`TransferStats` | 下载、分块续传、SHA1 校验、镜像排序；不认识 Minecraft 元数据 |
 | `Minecraft` | `VanillaResolver`、`Models`、`NativesUnpacker` | 把版本 JSON、资源索引变成文件清单；解压 natives |
 | `Packs` | `IPackFormat`、`PackFormats`、`PackManifest`、四个格式读取器 | 识别整合包格式，统一成 `PackManifest` |
-| `Loaders` | `ILoaderInstaller`、`LoaderInstallers`、`FabricInstaller`、`ForgeInstaller`、`JavaLocator`、`LoaderSpec` | 在原版计划上补加载器；Forge 还要跑官方 installer |
-| `Support` | `Json`、`PlatformInfo`、`RuleEvaluator`、`Text` | 序列化、平台判断、规则匹配、文案出口 |
+| `Loaders` | `ILoaderInstaller`、`LoaderInstallers`、`FabricInstaller`、`ForgeInstaller`、`JavaLocator`、`LoaderSpec` | 在原版计划上补加载器；Fabric 还要逐库取 `.sha1`，Forge 还要跑官方 installer |
+| `Support` | `Json`、`Hashes`、`PlatformInfo`、`RuleEvaluator`、`Text` | 序列化、上游哈希行解析、平台判断、规则匹配、文案出口 |
 
 依赖方向基本是向下的：`Api` 知道 `Sources` 和 `Engine`，`Sources` 知道 `Minecraft`、`Packs`、`Loaders`，`Engine` 和 `Support` 不知道别的层。`Minecraft` 会用到 `Engine` 的 `FileTask` 与镜像分类，但不知道有几种安装来源。
 
@@ -74,6 +74,7 @@ src\McDl.App (WinForms)  src\McDl.Cli (mcdl.exe)
 ## 几个容易踩的点
 
 - `FileTask.Kind` 必须是正确的 `SourceKind`，否则镜像会按错的策略排序。库文件用 `Maven`，资源用 `Assets`，版本元数据和资源索引都是 `Meta`。
+- `FileTask.Sha1` 为空表示“不校验”。`HashMatches` 遇到空哈希只判断文件是否存在，所以留空不等于校验通过。Fabric 库的哈希来自 `<库 URL>.sha1`，取不到就留空，这时要把它当成弱项看待，别在日志或文档里说成已校验。
 - `InstallPlan.MaterializeAsync` 在 `Files` 为空时直接返回，`PostDownload` 也不会跑。纯加载器、无文件下载的计划不要依赖这个分支。
 - 解析阶段已经写了磁盘文件。`plan` 命令不是只读的。
 - `Json` 读配置时关掉了日期解析（`DateParseHandling.None`），否则 `1.21` 这种版本号会被 Newtonsoft 当成日期。

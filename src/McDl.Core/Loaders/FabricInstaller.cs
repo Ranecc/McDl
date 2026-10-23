@@ -21,7 +21,7 @@ namespace McDl.Core
             var meta = await FabricLoader.FetchAsync(context.Engine, gameVersion, loader?.Version, ct)
                 .ConfigureAwait(false);
 
-            FabricLoader.Apply(plan, meta, profileId);
+            await FabricLoader.ApplyAsync(context, plan, meta, profileId, ct).ConfigureAwait(false);
             context.Log?.Invoke("Fabric " + (loader?.Version ?? meta.Loader?.Version) + " 已加入启动配置");
         }
     }

@@ -124,5 +124,29 @@ namespace McDl.Tests
         {
             Assert.Equal(expected, ForgeInstaller.ExpectedVersionId(kind, installerVersion));
         }
+
+        [Theory]
+        [InlineData("0123456789abcdef0123456789abcdef01234567", "0123456789abcdef0123456789abcdef01234567")]
+        [InlineData("0123456789ABCDEF0123456789ABCDEF01234567\n", "0123456789abcdef0123456789abcdef01234567")]
+        [InlineData("0123456789abcdef0123456789abcdef01234567  forge-1.20.1-47.2.0-installer.jar",
+            "0123456789abcdef0123456789abcdef01234567")]
+        [InlineData("  0123456789abcdef0123456789abcdef01234567  \r\n", "0123456789abcdef0123456789abcdef01234567")]
+        public void ParseSha1Listing_accepts_maven_listing_forms(string listing, string expected)
+        {
+            Assert.Equal(expected, ForgeInstaller.ParseSha1Listing(listing));
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        [InlineData("<html>not found</html>")]
+        [InlineData("0123456789abcdef0123456789abcdef0123456")] // 39 chars
+        [InlineData("0123456789abcdef0123456789abcdef012345678")] // 41 chars
+        [InlineData("0123456789abcdef0123456789abcdef0123456z")]
+        public void ParseSha1Listing_rejects_anything_that_is_not_a_sha1(string listing)
+        {
+            Assert.Null(ForgeInstaller.ParseSha1Listing(listing));
+        }
     }
 }

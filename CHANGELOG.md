@@ -2,6 +2,24 @@
 
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2026-10-23
+
+### 添加
+
+- 添加：确定性构建——`Directory.Build.props` 打开 `Deterministic`、`PathMap`、SourceLink 与 `ContinuousIntegrationBuild`，同一提交在相同 SDK 下可产出逐字节一致的 `McDl.exe`（两个独立目录已实测；CI 端尚未跑过，未验证项见 `docs/reproducible-builds.md`）
+- 添加：依赖锁定——`packages.lock.json` 覆盖四个项目，`dotnet restore --locked-mode` 按锁文件还原；根目录 `global.json` 固定 SDK 10.0.301
+- 添加：发布附 `SHA256SUMS`、`McDl-<版本>.exe.sha256` 与 `BUILD-INFO.txt`（版本、提交、SDK、构建命令、嵌入的依赖）
+- 添加：不打包依赖版 `McDl-<版本>-win-unbundled.zip`，与单文件版同时发布
+- 添加：cosign keyless 签名（`SHA256SUMS.sig`、`SHA256SUMS.pem`）与 SBOM（`sbom.json`）
+- 添加：Forge / NeoForge installer 按 maven 的 `.sha1` 校验；取不到 `.sha1` 时不中止，日志说明本次未校验
+- 添加：`SECURITY.md`、`BUILDING.md`，以及 `docs/network-and-files.md`、`docs/verifying-releases.md`、`docs/reproducible-builds.md`
+
+### 变更
+
+- 变更：README 增补依赖表、验证发布包、网络与本地文件行为，构建一节改指 `BUILDING.md`
+- 变更：发布流水线改为读取 `global.json` 安装 SDK，打 tag 后生成签名与 SBOM 再上传
+- 变更：Fabric 库改为逐库请求上游 `.sha1`，拿到就强校验、拿不到则这个库不校验并在结束时统计；解析收敛到 `Support\Hashes.cs`，与 Forge installer 共用
+
 ## [0.3.0] - 2026-10-21
 
 ### 添加

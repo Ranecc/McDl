@@ -1,58 +1,181 @@
-name: Release
+name: release
 
 on:
   push:
     tags:
       - 'v*'
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
-    name: 构建并发布
+  # ---------------------------------------------------------------- 构建与打包
+  build:
+    name: Build and package
     runs-on: windows-latest
+    timeout-minutes: 30
 
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          # 生成 Release Notes 需要完整历史
-          fetch-depth: 0
+          fetch-depth: 0   # 需要 tag 历史来生成“完整变更”对比链接
 
-      - name: 安装 .NET SDK
+      - name: Set up .NET SDK from global.json
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          global-json-file: global.json
 
-      - name: 从 tag 解析版本号
-        id: version
+      - name: Show SDK version
+        shell: pwsh
+        run: dotnet --version
+
+      - name: Resolve version from tag
         shell: pwsh
         run: |
-          $tag = '${{ github.ref_name }}'
-          $version = $tag -replace '^v', ''
-          if ([string]::IsNullOrWhiteSpace($version)) {
-            throw "无法从 tag '$tag' 解析出版本号"
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?)$') {
+            throw "无法从 tag '$tag' 解析版本号（应形如 v0.4.0）"
           }
-          Write-Host "tag: $tag"
-          Write-Host "version: $version"
-          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "VERSION=$($Matches['version'])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "发布版本：$($Matches['version'])"
 
-      - name: 构建 McDl.App
-        run: dotnet build src/McDl.App/McDl.App.csproj -c Release
-
-      - name: 构建 McDl.Cli
-        run: dotnet build src/McDl.Cli/McDl.Cli.csproj -c Release
-
-      - name: 打包发布压缩包
+      - name: Restore (locked mode)
         shell: pwsh
-        run: pwsh -File tools/build-release.ps1 -Version '${{ steps.version.outputs.version }}' -SkipBuild
+        run: dotnet restore mcdl.sln --locked-mode
 
-      - name: 创建 GitHub Release
+      - name: Build solution
+        shell: pwsh
+        run: dotnet build mcdl.sln -c Release --no-restore --nologo
+
+      - name: Test (xunit console runner)
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/test.ps1 -Configuration Release
+
+      - name: Package (zip + SHA256SUMS + BUILD-INFO + RELEASE-NOTES + SBOM)
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/build-release.ps1 -Version $env:VERSION -Configuration Release
+
+      - name: Show artifacts
+        shell: pwsh
+        run: Get-ChildItem dist | Format-Table Name, Length, LastWriteTime
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------- keyless 签名
+  # cosign 在 Linux 上最稳；id-token: write 是 keyless 签名必需的 OIDC 权限。
+  sign:
+    name: Sign SHA256SUMS (cosign keyless)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.4.1'
+
+      - name: Sign SHA256SUMS (keyless, OIDC)
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          cosign sign-blob --yes \
+            --output-signature SHA256SUMS.sig \
+            --output-certificate SHA256SUMS.pem \
+            SHA256SUMS
+          ls -l SHA256SUMS.sig SHA256SUMS.pem
+
+      - name: Verify signature (self-check)
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          cosign verify-blob SHA256SUMS \
+            --signature SHA256SUMS.sig \
+            --certificate SHA256SUMS.pem \
+            --certificate-identity-regexp 'https://github\.com/Ranecc/McDl/\.github/workflows/release\.yml@refs/tags/v.*' \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
+
+      - name: Upload signature
+        uses: actions/upload-artifact@v4
+        with:
+          name: signatures
+          path: |
+            dist/SHA256SUMS.sig
+            dist/SHA256SUMS.pem
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------- 发布
+  release:
+    name: Publish GitHub Release
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: artifacts
+
+      - name: Download signature artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: signatures
+          path: artifacts
+
+      - name: Verify checksums before publishing
+        working-directory: artifacts
+        run: |
+          set -euo pipefail
+          sha256sum --check SHA256SUMS
+
+      - name: Show files to publish
+        working-directory: artifacts
+        run: |
+          set -euo pipefail
+          ls -l
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: McDl ${{ steps.version.outputs.version }}
-          files: dist/McDl-${{ steps.version.outputs.version }}-win.zip
-          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}
+          name: McDl ${{ github.ref_name }}
+          # 正文来自构建阶段生成的 RELEASE-NOTES.md（含提交、构建命令、哈希、完整变更链接）。
+          # 注意：不要同时开启 generate_release_notes，它会被 body_path 覆盖/冲突。
+          body_path: artifacts/RELEASE-NOTES.md
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/McDl-*-win.zip
+            artifacts/McDl-*-win-unbundled.zip
+            artifacts/McDl-*.exe
+            artifacts/McDl-*.exe.sha256
+            artifacts/SHA256SUMS
+            artifacts/SHA256SUMS.sig
+            artifacts/SHA256SUMS.pem
+            artifacts/BUILD-INFO.txt
+            artifacts/RELEASE-NOTES.md
+            artifacts/sbom.json

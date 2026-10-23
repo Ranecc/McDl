@@ -11,7 +11,8 @@ Fabric 不需要本地 Java，也不跑任何程序。
 1. `FabricLoader.FetchAsync` 请求 `https://meta.fabricmc.net/v2/versions/loader/<游戏版本>/<loader版本>`。包里没写 loader 版本时，先请求 `/v2/versions/loader/<游戏版本>`，取第一个 `stable: true` 的版本；没有稳定的就取第一条。
 2. `FabricLoaderMeta.ClientLibraries()` 把 `launcherMeta.libraries.common` 和 `.client` 合并，按 Maven 坐标去重。server 列表不要。
 3. 每个库按 `VanillaResolver.MavenRelativePath` 算路径，放进 `libraries/`；URL 直接用 meta 里给的那一条，`SourceKind` 是 `Other`，所以不走镜像。
-4. `FabricLoader.Apply` 在 `versions\<profileId>\<profileId>.json` 写一份启动配置：`inheritsFrom` 指向原版版本，`mainClass` 用 meta 里的 `launcherMeta.mainClass.client`，`libraries` 原样放进去。启动器看到 `inheritsFrom` 就会把原版的库和 jar 一起算上。
+4. 每个库再去取一次 `<库 URL>.sha1`。取到 40 位哈希就填进 `FileTask.Sha1`，下载器按它校验：文件已存在且匹配就跳过，新下的在 `.part` 改名之前校验。取不到就把该库的 `Sha1` 留空，只检查文件存在。解析逻辑在 `Support\Hashes.cs`，Forge 那边共用。结束时日志写「Fabric 库 N 个，其中 M 个能取到上游 .sha1 并校验」。
+5. `FabricLoader.ApplyAsync` 在 `versions\<profileId>\<profileId>.json` 写一份启动配置：`inheritsFrom` 指向原版版本，`mainClass` 用 meta 里的 `launcherMeta.mainClass.client`，`libraries` 原样放进去。启动器看到 `inheritsFrom` 就会把原版的库和 jar 一起算上。
 
 这条路径的失败点基本只有网络。meta 挂了或者网络不通时，日志会显示对应 URL。
 
@@ -105,4 +106,4 @@ Quilt 加载器不在支持范围内，可以先单独安装原版，再用别�
 
 ## 镜像
 
-Fabric 的 meta 和库 URL 都是 `SourceKind.Other`，直连，不走 BMCLAPI；Forge / NeoForge 的 installer 走 `Maven` 类别，会先官方、失败后切镜像。installer 自己发起的下载不受 McDl 的 `MirrorRouter` 控制，那部分网络问题只能在 installer 日志里看。
+Fabric 的 meta、库 URL 和库的 `.sha1` 都是 `SourceKind.Other`，直连，不走 BMCLAPI；Forge / NeoForge 的 installer 走 `Maven` 类别，会先官方、失败后切镜像。installer 自己发起的下载不受 McDl 的 `MirrorRouter` 控制，那部分网络问题只能在 installer 日志里看。

@@ -110,22 +110,37 @@ namespace McDl.Core
         /// <summary>
         /// Adds the loader jars to the plan and writes a merged version profile next to the vanilla one,
         /// so launchers that understand "inheritsFrom" can start the modpack directly.
+        /// Fabric 的 meta 只给库的名字和地址，没有哈希；这里顺手去 maven 取每个库的 .sha1，
+        /// 取不到就按“不校验”走（记日志），不影响安装。细节见 docs/network-and-files.md。
         /// </summary>
-        public static void Apply(InstallPlan plan, FabricLoaderMeta meta, string profileId)
+        public static async Task ApplyAsync(InstallContext context, InstallPlan plan, FabricLoaderMeta meta,
+            string profileId, CancellationToken ct)
         {
             var librariesRoot = Path.Combine(plan.Root, "libraries");
+            var libraries = meta.ClientLibraries().ToList();
 
-            foreach (var library in meta.ClientLibraries())
+            var hashes = await Task.WhenAll(libraries.Select(lib => FetchSha1Async(context, lib, ct)))
+                .ConfigureAwait(false);
+
+            var verified = 0;
+            for (var i = 0; i < libraries.Count; i++)
             {
+                var library = libraries[i];
                 var relative = VanillaResolver.MavenRelativePath(library.Name);
+
+                if (hashes[i] != null) verified++;
                 plan.Files.Add(new FileTask
                 {
                     Label = library.Name,
                     Url = library.Url,
                     TargetPath = Path.Combine(librariesRoot, relative.Replace('/', Path.DirectorySeparatorChar)),
+                    Sha1 = hashes[i],
                     Kind = SourceKind.Other
                 });
             }
+
+            if (libraries.Count > 0)
+                context?.Log?.Invoke("Fabric 库 " + libraries.Count + " 个，其中 " + verified + " 个能取到上游 .sha1 并校验");
 
             var profile = new
             {
@@ -138,6 +153,28 @@ namespace McDl.Core
 
             var path = Path.Combine(plan.Root, "versions", profileId, profileId + ".json");
             Json.Save(path, profile);
+        }
+
+        private static async Task<string> FetchSha1Async(InstallContext context, FabricLibrary library,
+            CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(library?.Url)) return null;
+
+            try
+            {
+                var listing = await context.Engine.GetTextAsync(library.Url + ".sha1", SourceKind.Other, ct)
+                    .ConfigureAwait(false);
+                return Hashes.ParseSha1Listing(listing);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                // 单个库拿不到哈希不该让整个安装失败，最后那条汇总日志已经说明有几个没校验。
+                return null;
+            }
         }
     }
 }
