@@ -2,6 +2,15 @@
 
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+0.x 是开发期版本：API、界面与行为都还在变，不承诺兼容，也不再发布新的二进制。哈希、签名与可复现构建的承诺从 1.0.0 开始建立。
+
+## [未发布]
+
+### 变更
+
+- 变更：`release.yml` 只对 `v1` 及以后的 tag 发版；0.x 的 tag 仅作留档，不再产生 Release
+- 变更：文档与日志里的本机路径统一改成占位符（`<安装目录>`、`<用户名>`），并新增 `tools/check-leaks.ps1` 与 CI 检查，防止再把本机路径、用户名、主机名带进仓库
+
 ## [0.5.0] - 2026-10-23
 
 ### 添加
@@ -36,7 +45,7 @@
 
 ### 修复
 
-- 修复：`PathMap` 增加 NuGet 全局缓存目录的映射（`$(NuGetPackageRoot)=/_/nuget/`）。引用程序集的绝对路径会进入编译器输入，本机 `C:\Users\Admin\.nuget` 与 CI 的 `C:\Users\runneradmin\.nuget` 让 `McDl.Core.dll` 的模块版本号不同（0.4.1 实测：CI `0787A95F…`、本机 `500F44BC…`），进而让内嵌了它的单文件 exe 整块不同
+- 修复：`PathMap` 增加 NuGet 全局缓存目录的映射（`$(NuGetPackageRoot)=/_/nuget/`）。引用程序集的绝对路径会进入编译器输入，本机与 CI 的 NuGet 缓存目录（各自在自己的用户目录下）让 `McDl.Core.dll` 的模块版本号不同（0.4.1 实测：CI `0787A95F…`、本机 `500F44BC…`），进而让内嵌了它的单文件 exe 整块不同
 - 修复：`tools/build-release.ps1` 把发布包里的 `README.md` / `LICENSE.txt` 统一成 UTF-8 无 BOM + LF。`.gitattributes` 让 CI 检出的是 CRLF，直接复制会让 zip 随检出环境变化
 - 文档：`docs/reproducible-builds.md` 记录这两条根因与验证方式
 

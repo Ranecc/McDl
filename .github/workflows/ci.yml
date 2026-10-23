@@ -53,6 +53,10 @@ jobs:
           }
           Write-Host '编译输入全部为 LF。'
 
+      - name: Check machine-specific leaks
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/check-leaks.ps1
+
       - name: Restore (locked mode)
         shell: pwsh
         run: dotnet restore mcdl.sln --locked-mode

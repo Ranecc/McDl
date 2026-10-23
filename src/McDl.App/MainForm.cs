@@ -881,7 +881,7 @@ namespace McDl.App
             {
                 AppendLog("安装失败：" + ex.Message);
                 if (ex is UnauthorizedAccessException)
-                    AppendLog("提示：当前账号无法写入该安装目录，请换一个目录（例如 `D:\\Games\\.minecraft`）或检查目录权限。");
+                    AppendLog("提示：当前账号无法写入该安装目录，请换一个目录（例如换到其它盘的游戏目录）或检查目录权限。");
                 SetFooter("安装失败");
                 _pct.Text = "失败";
                 MessageBox.Show(this, ex.Message, "安装失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
