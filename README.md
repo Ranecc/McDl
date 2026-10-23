@@ -196,7 +196,7 @@ Forge 的 installer 需要 Java 17 或更高版本，但本机未找到可用的
 
 这是当前的选择：不做账号。将来若有人接手 OAuth 与安全响应，可以作为独立模块加入，前提是不影响「不登录也能下载」这条主线。使用前提与责任边界见[免责声明](#免责声明)。
 
-**exe 为何仅三百余 KB。** 目标框架为 net48，运行时使用系统自带组件；Core 与 Newtonsoft.Json 经 Costura 嵌入 exe。若改为自带运行时的 .NET 8 单文件发布，体积在数十 MB 量级。
+**exe 为何只有四百多 KB。** 目标框架为 net48，运行时使用系统自带组件；Core 与 Newtonsoft.Json 经 Costura 嵌入 exe。若改为自带运行时的 .NET 8 单文件发布，体积在数十 MB 量级。
 
 **首次运行时被 SmartScreen 拦住（「Windows 已保护你的电脑」／「未知发布者」）。** 从浏览器下载的单文件 exe 会带上「来自 Internet」标记，SmartScreen 对没有信誉记录的文件一律先拦一次警告：点「更多信息 → 仍要运行」即可。这项信誉按文件哈希与发布者证书累积，微软自己的说法是「数周时间与来自广泛用户的数百次全新安装」，[签名也不能免疫](https://learn.microsoft.com/zh-cn/windows/apps/package-and-deploy/smartscreen-reputation)——有效证书只是把提示从「未知发布者」换成显示发布者名称，OV 与 EV 都不再免检；只有 Microsoft Store 分发的应用完全不触发。本项目 0.x 不购买代码签名证书，所以这个提示会一直在，能自己验证的是字节而不是发布者：按 [docs/verifying-releases.md](docs/verifying-releases.md) 用 `SHA256SUMS` 对哈希并验 cosign 签名，或按 `BUILD-INFO.txt` 自行重建比对。
 **安装至 `Program Files` 失败。** 权限不足，改用普通用户目录，或以管理员身份运行。
