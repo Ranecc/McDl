@@ -161,7 +161,7 @@ jobs:
           if ($expected -ne $actual) { throw "校验文件与 exe 不一致（$expected != $actual）" }
 
       - name: Upload single-file exe with checksum
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mcdl-exe
           path: |
